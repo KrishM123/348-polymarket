@@ -1,112 +1,92 @@
-import { Bet, NewBet } from '@/types';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Mock bets data - in a real app this would be in a database
-const mockBets: { [marketId: string]: Bet[] } = {
-  '1': [
-    {
-      bId: 1,
-      uId: 101,
-      mId: 1,
-      podd: 1.75,
-      amt: 100.00,
-      yes: true
-    },
-    {
-      bId: 2,
-      uId: 102,
-      mId: 1,
-      podd: 1.80,
-      amt: 250.00,
-      yes: false
-    },
-    {
-      bId: 3,
-      uId: 103,
-      mId: 1,
-      podd: 1.70,
-      amt: 50.00,
-      yes: true
-    }
-  ],
-  '2': [
-    {
-      bId: 4,
-      uId: 104,
-      mId: 2,
-      podd: 2.1,
-      amt: 500.00,
-      yes: true
-    },
-    {
-      bId: 5,
-      uId: 105,
-      mId: 2,
-      podd: 2.0,
-      amt: 150.00,
-      yes: false
-    }
-  ],
-  '3': [
-    {
-      bId: 6,
-      uId: 106,
-      mId: 3,
-      podd: 1.95,
-      amt: 75.00,
-      yes: true
-    }
-  ]
-};
-
-let nextBetId = 7;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { marketId: string } }
+  context: { params: Promise<{ marketId: string }> }
 ) {
-  const marketId = params.marketId;
+  const { marketId } = await context.params;
   
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  const bets = mockBets[marketId] || [];
-  return NextResponse.json(bets);
+  try {
+    const response = await fetch(`${BACKEND_URL}/markets/${marketId}/bets`, {
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return NextResponse.json({ error: 'Market not found' }, { status: 404 });
+      }
+      throw new Error(`Backend API responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Return the bets array from the backend response
+    return NextResponse.json(data.bets || []);
+  } catch (error) {
+    console.error('Error fetching bets from backend:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch bets from backend' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { marketId: string } }
+  context: { params: Promise<{ marketId: string }> }
 ) {
-  const marketId = params.marketId;
+  const { marketId } = await context.params;
   
   try {
-    const newBetData: NewBet = await request.json();
+    const requestBody = await request.json();
     
-    // Create new bet with generated ID and random user ID
-    const newBet: Bet = {
-      bId: nextBetId++,
-      uId: Math.floor(Math.random() * 1000) + 100, // Random user ID
-      mId: parseInt(marketId),
-      podd: newBetData.podd,
-      amt: newBetData.amt,
-      yes: newBetData.yes
+    // Transform the frontend request to match backend expected format
+    const backendRequest = {
+      user_id: 1, // Default user ID - you might want to implement proper user authentication
+      odds: requestBody.podd,
+      amount: requestBody.amt,
+      prediction: requestBody.yes
     };
     
-    // Add to mock data
-    if (!mockBets[marketId]) {
-      mockBets[marketId] = [];
+    const response = await fetch(`${BACKEND_URL}/markets/${marketId}/bets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(backendRequest),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: errorData.error || 'Failed to create bet' },
+        { status: response.status }
+      );
     }
-    mockBets[marketId].push(newBet);
+
+    const data = await response.json();
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 400));
+    // Transform the backend response to match frontend expected format
+    const frontendBet = {
+      bId: data.bet_id,
+      uId: data.user_id,
+      mId: data.market_id,
+      podd: data.odds,
+      amt: data.amount,
+      yes: data.prediction
+    };
     
-    return NextResponse.json(newBet, { status: 201 });
+    return NextResponse.json(frontendBet, { status: 201 });
   } catch (error) {
+    console.error('Error creating bet on backend:', error);
     return NextResponse.json(
-      { error: 'Invalid bet data' },
-      { status: 400 }
+      { error: 'Failed to create bet' },
+      { status: 500 }
     );
   }
 } 

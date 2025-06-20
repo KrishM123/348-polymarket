@@ -13,9 +13,24 @@ interface BettingMarket {
   odds: number;
 }
 
+interface BackendMarket {
+  mid?: number;
+  mId?: number;
+  name: string;
+  description?: string;
+  podd: number;
+  volume: number;
+  end_date?: string;
+}
+
 async function getMarkets(): Promise<Market[]> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/markets`, {
+    // For server-side rendering, always use the local API route
+    // For client-side, use the full URL if needed
+    const isServer = typeof window === 'undefined';
+    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    
+    const res = await fetch(`${apiUrl}/api/markets`, {
       cache: 'no-store' // Always fetch fresh data
     });
     
@@ -23,7 +38,17 @@ async function getMarkets(): Promise<Market[]> {
       throw new Error('Failed to fetch markets');
     }
     
-    return res.json();
+    const markets: BackendMarket[] = await res.json();
+    
+    // Transform backend response to frontend format if needed
+    return markets.map((market: BackendMarket) => ({
+      mId: market.mid || market.mId || 0,
+      name: market.name,
+      description: market.description,
+      podd: market.podd,
+      volume: market.volume,
+      end_date: market.end_date
+    }));
   } catch (error) {
     console.error('Error fetching markets:', error);
     return [];
@@ -52,6 +77,7 @@ function MarketsContent({ markets }: { markets: Market[] }) {
           <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
             Place your bets on upcoming sports events
           </p>
+          <p className="text-gray-400 text-sm mt-2">Make sure the backend server is running on port 5000.</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -37,6 +37,7 @@ def get_db_connection():
     """Create and return a database connection"""
     try:
         connection = mysql.connector.connect(**DB_CONFIG)
+        connection.autocommit = True
         return connection
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
@@ -314,9 +315,6 @@ def create_bet(market_id):
             connection.close()
             return jsonify({'error': 'Insufficient balance'}), 400
         
-        # Start transaction
-        connection.start_transaction()
-        
         try:
             # Insert the bet
             cursor.execute("""
@@ -336,9 +334,6 @@ def create_bet(market_id):
                 UPDATE markets SET volume = volume + %s WHERE mid = %s
             """, (amount, market_id))
             
-            # Commit transaction
-            connection.commit()
-            
             cursor.close()
             connection.close()
             
@@ -354,7 +349,6 @@ def create_bet(market_id):
             }), 201
             
         except Error as e:
-            connection.rollback()
             cursor.close()
             connection.close()
             print(f"Transaction error: {e}")

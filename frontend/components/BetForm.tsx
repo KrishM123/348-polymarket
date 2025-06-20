@@ -26,8 +26,8 @@ export default function BetForm({ marketId }: BetFormProps) {
     setSuccess(false);
 
     // Basic validation
-    if (formData.podd <= 0) {
-      setError('Odds must be greater than 0');
+    if (formData.podd < 0.01 || formData.podd > 0.99) {
+      setError('Odds must be between 0.01 and 0.99');
       setIsSubmitting(false);
       return;
     }
@@ -39,7 +39,7 @@ export default function BetForm({ marketId }: BetFormProps) {
     }
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/markets/${marketId}/bets`, {
+      const response = await fetch(`/api/markets/${marketId}/bets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ export default function BetForm({ marketId }: BetFormProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to place bet');
+        throw new Error(errorData.error || 'Failed to place bet');
       }
 
       // Reset form and show success
@@ -113,18 +113,20 @@ export default function BetForm({ marketId }: BetFormProps) {
       {/* Odds */}
       <div>
         <label htmlFor="podd" className="block text-sm font-medium text-gray-700 mb-1">
-          Odds Multiplier
+          Odds (between 0.01 and 0.99)
         </label>
         <input
           type="number"
           id="podd"
           value={formData.podd}
           onChange={(e) => handleInputChange('podd', parseFloat(e.target.value) || 0)}
-          step="0.1"
-          min="1.1"
+          step="0.01"
+          min="0.01"
+          max="0.99"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           disabled={isSubmitting}
         />
+        <p className="text-xs text-gray-500 mt-1">This represents the probability (e.g., 0.75 = 75% chance)</p>
       </div>
 
       {/* Amount */}

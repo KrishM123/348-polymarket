@@ -14,6 +14,8 @@ export interface Bet {
   podd: number;
   amt: number;
   yes: boolean;
+  uname?: string;
+  createdAt?: string;
 }
 
 export interface NewBet {

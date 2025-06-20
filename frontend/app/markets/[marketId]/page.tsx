@@ -3,9 +3,34 @@ import { notFound } from 'next/navigation';
 import { Market, Bet } from '@/types';
 import BetForm from '@/components/BetForm';
 
+interface BackendMarket {
+  mid?: number;
+  mId?: number;
+  name: string;
+  description?: string;
+  podd: number;
+  volume: number;
+  end_date?: string;
+}
+
+interface BackendBet {
+  bId: number;
+  uId: number;
+  mId: number;
+  podd: number;
+  amt: number;
+  yes: boolean;
+  uname?: string;
+  createdAt?: string;
+}
+
 async function getMarket(marketId: string): Promise<Market | null> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/markets`, {
+    // For server-side rendering, always use the local API route
+    const isServer = typeof window === 'undefined';
+    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    
+    const res = await fetch(`${apiUrl}/api/markets`, {
       cache: 'no-store'
     });
     
@@ -13,8 +38,22 @@ async function getMarket(marketId: string): Promise<Market | null> {
       throw new Error('Failed to fetch markets');
     }
     
-    const markets: Market[] = await res.json();
-    return markets.find(market => market.mId === parseInt(marketId)) || null;
+    const markets: BackendMarket[] = await res.json();
+    const market = markets.find(market => (market.mId || market.mid) === parseInt(marketId));
+    
+    if (!market) {
+      return null;
+    }
+    
+    // Transform backend response to frontend format if needed
+    return {
+      mId: market.mId || market.mid || 0,
+      name: market.name,
+      description: market.description,
+      podd: market.podd,
+      volume: market.volume,
+      end_date: market.end_date
+    };
   } catch (error) {
     console.error('Error fetching market:', error);
     return null;
@@ -23,7 +62,11 @@ async function getMarket(marketId: string): Promise<Market | null> {
 
 async function getBets(marketId: string): Promise<Bet[]> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/markets/${marketId}/bets`, {
+    // For server-side rendering, always use the local API route
+    const isServer = typeof window === 'undefined';
+    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    
+    const res = await fetch(`${apiUrl}/api/markets/${marketId}/bets`, {
       cache: 'no-store'
     });
     
@@ -31,17 +74,35 @@ async function getBets(marketId: string): Promise<Bet[]> {
       throw new Error('Failed to fetch bets');
     }
     
-    return res.json();
+    const bets: BackendBet[] = await res.json();
+    
+    // Transform backend response to frontend format if needed
+    return bets.map((bet: BackendBet) => ({
+      bId: bet.bId,
+      uId: bet.uId,
+      mId: bet.mId,
+      podd: bet.podd,
+      amt: bet.amt,
+      yes: bet.yes,
+      uname: bet.uname,
+      createdAt: bet.createdAt
+    }));
   } catch (error) {
     console.error('Error fetching bets:', error);
     return [];
   }
 }
 
-export default async function MarketPage({ params }: { params: { marketId: string } }) {
+export default async function MarketPage({ 
+  params 
+}: { 
+  params: Promise<{ marketId: string }> 
+}) {
+  const { marketId } = await params;
+  
   const [market, bets] = await Promise.all([
-    getMarket(params.marketId),
-    getBets(params.marketId)
+    getMarket(marketId),
+    getBets(marketId)
   ]);
 
   if (!market) {
@@ -126,7 +187,14 @@ export default async function MarketPage({ params }: { params: { marketId: strin
                         </span>
                         <span className="font-medium text-gray-900">#{bet.bId}</span>
                       </div>
-                      <div className="text-sm text-gray-600">User #{bet.uId}</div>
+                      <div className="text-sm text-gray-600">
+                        {bet.uname ? `${bet.uname} (ID: ${bet.uId})` : `User #${bet.uId}`}
+                      </div>
+                      {bet.createdAt && (
+                        <div className="text-xs text-gray-500">
+                          {new Date(bet.createdAt).toLocaleString()}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm">
