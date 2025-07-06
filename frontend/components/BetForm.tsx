@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { NewBet } from '@/types';
+import { NewBet, Market } from '@/types';
 
 interface BetFormProps {
   marketId: number;
@@ -11,13 +11,33 @@ interface BetFormProps {
 export default function BetForm({ marketId }: BetFormProps) {
   const router = useRouter();
   const [formData, setFormData] = useState<NewBet>({
-    podd: 1.5,
     amt: 0,
     yes: true
   });
+  const [currentMarket, setCurrentMarket] = useState<Market | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Fetch current market data to get odds
+  useEffect(() => {
+    const fetchMarket = async () => {
+      try {
+        const response = await fetch(`/api/markets`);
+        if (response.ok) {
+          const markets = await response.json();
+          const market = markets.find((m: any) => (m.mId || m.mid) === marketId);
+          if (market) {
+            setCurrentMarket(market);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching market:', error);
+      }
+    };
+    
+    fetchMarket();
+  }, [marketId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +46,6 @@ export default function BetForm({ marketId }: BetFormProps) {
     setSuccess(false);
 
     // Basic validation
-    if (formData.podd < 0.01 || formData.podd > 0.99) {
-      setError('Odds must be between 0.01 and 0.99');
-      setIsSubmitting(false);
-      return;
-    }
-
     if (formData.amt <= 0) {
       setError('Amount must be greater than 0');
       setIsSubmitting(false);
@@ -53,7 +67,7 @@ export default function BetForm({ marketId }: BetFormProps) {
       }
 
       // Reset form and show success
-      setFormData({ podd: 1.5, amt: 0, yes: true });
+      setFormData({ amt: 0, yes: true });
       setSuccess(true);
       
       // Refresh the page to show the new bet
@@ -73,7 +87,7 @@ export default function BetForm({ marketId }: BetFormProps) {
     setError(null);
   };
 
-  const potentialWin = formData.amt * formData.podd;
+  const potentialWin = currentMarket ? formData.amt * currentMarket.podd : 0;
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
@@ -110,23 +124,19 @@ export default function BetForm({ marketId }: BetFormProps) {
         </div>
       </div>
 
-      {/* Odds */}
+      {/* Current Market Odds Display */}
       <div>
-        <label htmlFor="podd" className="block text-sm font-medium text-gray-700 mb-1">
-          Odds (between 0.01 and 0.99)
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Current Market Odds
         </label>
-        <input
-          type="number"
-          id="podd"
-          value={formData.podd}
-          onChange={(e) => handleInputChange('podd', parseFloat(e.target.value) || 0)}
-          step="0.01"
-          min="0.01"
-          max="0.99"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          disabled={isSubmitting}
-        />
-        <p className="text-xs text-gray-500 mt-1">This represents the probability (e.g., 0.75 = 75% chance)</p>
+        <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-700">
+          {currentMarket ? (
+            <span className="font-medium">{currentMarket.podd}x ({Math.round(currentMarket.podd * 100)}% probability)</span>
+          ) : (
+            <span className="text-gray-500">Loading...</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">You will bet at these current market odds</p>
       </div>
 
       {/* Amount */}
@@ -147,7 +157,7 @@ export default function BetForm({ marketId }: BetFormProps) {
       </div>
 
       {/* Potential Win Display */}
-      {formData.amt > 0 && formData.podd > 0 && (
+      {formData.amt > 0 && currentMarket && (
         <div className="bg-green-50 border border-green-200 rounded-md p-3">
           <div className="text-sm text-green-800">
             <strong>Potential Win: ${potentialWin.toFixed(2)}</strong>

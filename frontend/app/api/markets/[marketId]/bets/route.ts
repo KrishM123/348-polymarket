@@ -48,7 +48,6 @@ export async function POST(
     // Transform the frontend request to match backend expected format
     const backendRequest = {
       user_id: 1, // Default user ID - you might want to implement proper user authentication
-      odds: requestBody.podd,
       amount: requestBody.amt,
       prediction: requestBody.yes
     };
@@ -76,7 +75,7 @@ export async function POST(
       bId: data.bet_id,
       uId: data.user_id,
       mId: data.market_id,
-      podd: data.odds,
+      podd: data.odds_at_bet,
       amt: data.amount,
       yes: data.prediction
     };
