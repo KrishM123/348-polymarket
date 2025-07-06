@@ -451,6 +451,228 @@ def create_bet(market_id):
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create bet'}), 500
 
+@app.route('/markets/<int:market_id>/comments', methods=['GET'])
+def get_market_comments(market_id):
+    """Get all comments for a specific market in a threaded structure"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # First check if market exists
+        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Market not found'}), 404
+        
+        # Get all comments for the market with user information
+        # This query uses a recursive CTE to build the comment tree
+        cursor.execute("""
+            WITH RECURSIVE CommentTree AS (
+                -- Base case: Get all top-level comments (comments with no parents)
+                SELECT 
+                    c.cId,
+                    c.content,
+                    c.created_at,
+                    c.uId,
+                    u.uname,
+                    NULL as parent_id,
+                    0 as level
+                FROM comments c
+                JOIN users u ON c.uId = u.uid
+                WHERE c.mId = %s
+                AND NOT EXISTS (
+                    SELECT 1 FROM isParentOf ip WHERE ip.cCId = c.cId
+                )
+                
+                UNION ALL
+                
+                -- Recursive case: Get replies to comments
+                SELECT 
+                    c.cId,
+                    c.content,
+                    c.created_at,
+                    c.uId,
+                    u.uname,
+                    ip.pCId as parent_id,
+                    ct.level + 1
+                FROM comments c
+                JOIN users u ON c.uId = u.uid
+                JOIN isParentOf ip ON c.cId = ip.cCId
+                JOIN CommentTree ct ON ip.pCId = ct.cId
+                WHERE c.mId = %s
+            )
+            SELECT * FROM CommentTree
+            ORDER BY level, created_at;
+        """, (market_id, market_id))
+        
+        comments = cursor.fetchall()
+        
+        # Convert datetime objects to strings for JSON serialization
+        for comment in comments:
+            comment['created_at'] = comment['created_at'].isoformat()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'market_id': market_id,
+            'comments': comments,
+            'count': len(comments)
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to fetch comments'}), 500
+
+@app.route('/markets/<int:market_id>/comments', methods=['POST'])
+def create_comment(market_id):
+    """Create a new top-level comment on a market"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['user_id', 'content']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        user_id = data['user_id']
+        content = data['content']
+        
+        cursor = connection.cursor()
+        
+        # Check if market exists
+        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Market not found'}), 404
+        
+        # Check if user exists
+        cursor.execute("SELECT uid FROM users WHERE uid = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Insert the comment
+        cursor.execute("""
+            INSERT INTO comments (uId, mId, content)
+            VALUES (%s, %s, %s)
+        """, (user_id, market_id, content))
+        
+        comment_id = cursor.lastrowid
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Comment created successfully',
+            'comment_id': comment_id,
+            'market_id': market_id,
+            'user_id': user_id
+        }), 201
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to create comment'}), 500
+
+@app.route('/markets/<int:market_id>/comments/<int:parent_id>/replies', methods=['POST'])
+def create_reply(market_id, parent_id):
+    """Create a reply to an existing comment"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['user_id', 'content']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        user_id = data['user_id']
+        content = data['content']
+        
+        cursor = connection.cursor()
+        
+        # Check if market exists
+        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Market not found'}), 404
+        
+        # Check if parent comment exists and belongs to this market
+        cursor.execute("""
+            SELECT cId FROM comments 
+            WHERE cId = %s AND mId = %s
+        """, (parent_id, market_id))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Parent comment not found'}), 404
+        
+        # Check if user exists
+        cursor.execute("SELECT uid FROM users WHERE uid = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Start transaction
+        connection.start_transaction()
+        
+        try:
+            # Insert the reply comment
+            cursor.execute("""
+                INSERT INTO comments (uId, mId, content)
+                VALUES (%s, %s, %s)
+            """, (user_id, market_id, content))
+            
+            reply_id = cursor.lastrowid
+            
+            # Create the parent-child relationship
+            cursor.execute("""
+                INSERT INTO isParentOf (pCId, cCId)
+                VALUES (%s, %s)
+            """, (parent_id, reply_id))
+            
+            connection.commit()
+            
+            cursor.close()
+            connection.close()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Reply created successfully',
+                'comment_id': reply_id,
+                'parent_id': parent_id,
+                'market_id': market_id,
+                'user_id': user_id
+            }), 201
+            
+        except Error as e:
+            connection.rollback()
+            raise e
+            
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to create reply'}), 500
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Endpoint not found'}), 404

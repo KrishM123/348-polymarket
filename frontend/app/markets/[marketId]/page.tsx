@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Market, Bet } from '@/types';
+import { Market, Bet, Comment } from '@/types';
 import BetForm from '@/components/BetForm';
+import Comments from '@/components/Comments';
 
 interface BackendMarket {
   mid?: number;
@@ -93,6 +94,27 @@ async function getBets(marketId: string): Promise<Bet[]> {
   }
 }
 
+async function getComments(marketId: string): Promise<Comment[]> {
+  try {
+    const isServer = typeof window === 'undefined';
+    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    
+    const res = await fetch(`${apiUrl}/api/markets/${marketId}/comments`, {
+      cache: 'no-store'
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to fetch comments');
+    }
+    
+    const data = await res.json();
+    return data.comments || [];
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    return [];
+  }
+}
+
 export default async function MarketPage({ 
   params 
 }: { 
@@ -100,9 +122,10 @@ export default async function MarketPage({
 }) {
   const { marketId } = await params;
   
-  const [market, bets] = await Promise.all([
+  const [market, bets, comments] = await Promise.all([
     getMarket(marketId),
-    getBets(marketId)
+    getBets(marketId),
+    getComments(marketId)
   ]);
 
   if (!market) {
@@ -226,6 +249,9 @@ export default async function MarketPage({
           </div>
         </div>
       </div>
+
+      {/* Comments Section */}
+      <Comments marketId={market.mId} initialComments={comments} />
     </div>
   );
 } 
