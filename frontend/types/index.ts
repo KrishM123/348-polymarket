@@ -19,7 +19,6 @@ export interface Bet {
 }
 
 export interface NewBet {
-  podd: number;
   amt: number;
   yes: boolean;
 } 
