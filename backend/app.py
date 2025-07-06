@@ -115,7 +115,6 @@ def register():
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
-        name = data.get('name', '')
         phone_number = data.get('phoneNumber', '')
         
         # Validate required fields
@@ -155,9 +154,9 @@ def register():
         
         # Insert the new user
         cursor.execute("""
-            INSERT INTO users (uname, email, passwordHash, phoneNumber, name)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (username, email, hashed_password.decode('utf-8'), phone_number, name))
+            INSERT INTO users (uname, email, passwordHash, phoneNumber)
+            VALUES (%s, %s, %s, %s)
+        """, (username, email, hashed_password.decode('utf-8'), phone_number))
         
         user_id = cursor.lastrowid
         connection.commit()
