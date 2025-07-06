@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ marketId: string }> }
@@ -9,7 +7,7 @@ export async function GET(
   const { marketId } = await context.params;
   
   try {
-    const response = await fetch(`${BACKEND_URL}/markets/${marketId}/bets`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}/bets`, {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
@@ -52,7 +50,7 @@ export async function POST(
       prediction: requestBody.yes
     };
     
-    const response = await fetch(`${BACKEND_URL}/markets/${marketId}/bets`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}/bets`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
