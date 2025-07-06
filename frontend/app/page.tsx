@@ -1,6 +1,24 @@
+'use client';
+
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { useState } from 'react';
+import LoginPopup from '@/components/LoginPopup';
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const [showLogin, setShowLogin] = useState(false);
+
+  const handleProtectedAction = (e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      setShowLogin(true);
+    } else {
+      router.push(path);
+    }
+  };
   return (
     <div className="bg-gray-50">
       <div className="container mx-auto px-4 py-16">
@@ -19,7 +37,8 @@ export default function Home() {
               </p>
               <Link
                 href="/markets"
-                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                onClick={(e) => handleProtectedAction(e, '/markets')}
+                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center"
               >
                 View Markets
               </Link>
@@ -33,7 +52,8 @@ export default function Home() {
               </p>
               <Link
                 href="/markets"
-                className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                onClick={(e) => handleProtectedAction(e, '/markets')}
+                className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors text-center"
               >
                 Start Betting
               </Link>
@@ -68,6 +88,15 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      <LoginPopup 
+        isOpen={showLogin} 
+        onClose={() => setShowLogin(false)}
+        onLoginSuccess={() => {
+          setShowLogin(false);
+          router.push('/markets');
+        }}
+      />
     </div>
   );
 }

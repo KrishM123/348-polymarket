@@ -1,5 +1,17 @@
 import Link from 'next/link';
 import { Market } from '@/types';
+import ProtectedRoute from '@/components/ProtectedRoute';
+
+// Define a more specific type for our market data
+interface BettingMarket {
+  id: string | number;
+  title: string;
+  description: string;
+  status: string;
+  endDate: string;
+  totalVolume: number;
+  odds: number;
+}
 
 async function getMarkets(): Promise<Market[]> {
   try {
@@ -18,57 +30,68 @@ async function getMarkets(): Promise<Market[]> {
   }
 }
 
-export default async function MarketsPage() {
-  const markets = await getMarkets();
+function MarketsContent({ markets }: { markets: Market[] }) {
+  // Transform the Market[] to our BettingMarket[]
+  const bettingMarkets: BettingMarket[] = markets.map(market => ({
+    id: market.mId,
+    title: market.name,
+    description: market.description || 'No description available',
+    status: 'Active', // Default status since it's not in the Market type
+    endDate: market.end_date || new Date().toISOString(),
+    totalVolume: market.volume || 0,
+    odds: market.podd || 1.0
+  }));
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Sports Markets</h1>
-        <p className="text-gray-600">Browse and place bets on available markets</p>
-      </div>
-
-      {markets.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No markets available at the moment.</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
+            Betting Markets
+          </h1>
+          <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
+            Place your bets on upcoming sports events
+          </p>
         </div>
-      ) : (
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {markets.map((market) => (
+          {bettingMarkets.map((market) => (
             <Link
-              key={market.mId}
-              href={`/markets/${market.mId}`}
-              className="block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 p-6"
+              key={market.id}
+              href={`/markets/${market.id}`}
+              className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-300"
             >
-              <div className="flex justify-between items-start mb-3">
-                <h2 className="text-xl font-semibold text-gray-900 line-clamp-2">
-                  {market.name}
-                </h2>
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                  {market.podd}x odds
-                </span>
-              </div>
-              
-              {market.description && (
-                <p className="text-gray-600 text-sm line-clamp-3 mb-4">
-                  {market.description}
-                </p>
-              )}
-              
-              <div className="flex justify-between items-center text-sm text-gray-500 mb-3">
-                <span>Market #{market.mId}</span>
-                <span>Volume: ${market.volume.toFixed(2)}</span>
-              </div>
-              
-              {market.end_date && (
-                <div className="text-xs text-gray-500">
-                  Ends: {new Date(market.end_date).toLocaleDateString()}
+              <div className="p-6">
+                <div className="flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-lg font-medium text-gray-900">{market.title}</h3>
+                    <span className="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      {market.odds}x odds
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500 mb-4 flex-grow">{market.description}</p>
+                  <div className="mt-auto">
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Ends: {new Date(market.endDate).toLocaleDateString()}</span>
+                      <span>{market.totalVolume} ETH</span>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </Link>
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
-} 
+}
+
+export default async function MarketsPage() {
+  const markets = await getMarkets();
+  
+  return (
+    <ProtectedRoute>
+      <MarketsContent markets={markets} />
+    </ProtectedRoute>
+  );
+}
