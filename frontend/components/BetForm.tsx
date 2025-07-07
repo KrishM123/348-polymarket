@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { NewBet, Market } from '@/types';
 
 interface BetFormProps {
   marketId: number;
+  onBetPlaced?: () => void;
 }
 
-export default function BetForm({ marketId }: BetFormProps) {
+export default function BetForm({ marketId, onBetPlaced }: BetFormProps) {
   const router = useRouter();
+  const { token, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<NewBet>({
     amt: 0,
     yes: true
@@ -20,7 +23,6 @@ export default function BetForm({ marketId }: BetFormProps) {
   const [success, setSuccess] = useState(false);
 
   // Fetch current market data to get odds
-  useEffect(() => {
     const fetchMarket = async () => {
       try {
         const response = await fetch(`/api/markets`);
@@ -36,6 +38,7 @@ export default function BetForm({ marketId }: BetFormProps) {
       }
     };
     
+  useEffect(() => {
     fetchMarket();
   }, [marketId]);
 
@@ -53,10 +56,15 @@ export default function BetForm({ marketId }: BetFormProps) {
     }
 
     try {
+      if (!isAuthenticated || !token) {
+        throw new Error('You must be logged in to place a bet');
+      }
+
       const response = await fetch(`/api/markets/${marketId}/bets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
@@ -70,8 +78,13 @@ export default function BetForm({ marketId }: BetFormProps) {
       setFormData({ amt: 0, yes: true });
       setSuccess(true);
       
-      // Refresh the page to show the new bet
-      router.refresh();
+      // Refresh market data to get updated odds
+      await fetchMarket();
+      
+      // Trigger callback to refresh bets list
+      if (onBetPlaced) {
+        onBetPlaced();
+      }
       
       // Hide success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
@@ -87,7 +100,13 @@ export default function BetForm({ marketId }: BetFormProps) {
     setError(null);
   };
 
-  const potentialWin = currentMarket ? formData.amt * currentMarket.podd : 0;
+  // Calculate potential win and profit based on YES/NO bet and odds
+  const potentialWin = currentMarket && formData.amt > 0
+    ? (formData.yes
+        ? (1 / currentMarket.podd) * formData.amt
+        : (1 / (1 - currentMarket.podd)) * formData.amt)
+    : 0;
+  const profit = potentialWin - formData.amt;
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
@@ -163,7 +182,7 @@ export default function BetForm({ marketId }: BetFormProps) {
             <strong>Potential Win: ${potentialWin.toFixed(2)}</strong>
           </div>
           <div className="text-xs text-green-600 mt-1">
-            Profit: ${(potentialWin - formData.amt).toFixed(2)}
+            Profit: ${profit.toFixed(2)}
           </div>
         </div>
       )}

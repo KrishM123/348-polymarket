@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 export async function GET(
   request: NextRequest,
@@ -43,9 +44,17 @@ export async function POST(
   try {
     const requestBody = await request.json();
     
+    // Get the authorization header from the request
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+    
     // Transform the frontend request to match backend expected format
     const backendRequest = {
-      user_id: 1, // Default user ID - you might want to implement proper user authentication
       amount: requestBody.amt,
       prediction: requestBody.yes
     };
@@ -54,6 +63,7 @@ export async function POST(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': authHeader,
       },
       body: JSON.stringify(backendRequest),
     });

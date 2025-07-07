@@ -18,6 +18,7 @@ app = Flask(__name__)
 # Enable CORS for all routes
 CORS(app, resources={
     r"/auth/*": {"origins": "http://localhost:3000"},
+    r"/markets/*": {"origins": "http://localhost:3000"},
     r"/api/*": {"origins": "http://localhost:3000"}
 })
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -100,8 +101,8 @@ def token_required(f):
             # Remove 'Bearer ' from token
             token = token.split(' ')[1]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            # You can add the current user to the request context if needed
-            # current_user = data['user_id']
+            # Add the current user to the request context
+            request.current_user = data
         except Exception as e:
             return jsonify({'error': 'Token is invalid'}), 401
             
@@ -204,7 +205,7 @@ def login():
             'user_id': user['uid'],
             'username': user['uname'],
             'exp': datetime.utcnow() + timedelta(seconds=TOKEN_EXPIRATION)
-        }, app.config['SECRET_KEY'])
+        }, app.config['SECRET_KEY'], algorithm='HS256')
         
         return jsonify({
             'message': 'Login successful',
@@ -350,6 +351,7 @@ def get_market_bets(market_id):
         return jsonify({'error': 'Failed to fetch bets'}), 500
 
 @app.route('/markets/<int:market_id>/bets', methods=['POST'])
+@token_required
 def create_bet(market_id):
     """Create a new bet on a specific market"""
     connection = get_db_connection()
@@ -360,13 +362,15 @@ def create_bet(market_id):
         # Get JSON data from request
         data = request.get_json()
         
-        # Validate required fields - removed 'odds' since users can only bet at current market odds
-        required_fields = ['user_id', 'amount', 'prediction']
+        # Get user ID from JWT token
+        user_id = request.current_user['user_id']
+        
+        # Validate required fields - removed 'user_id' since it comes from token
+        required_fields = ['amount', 'prediction']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        user_id = data['user_id']
         amount = float(data['amount'])
         prediction = bool(data['prediction'])  # True for YES, False for NO
         
