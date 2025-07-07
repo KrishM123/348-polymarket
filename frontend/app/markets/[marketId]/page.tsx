@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Market, Bet } from '@/types';
 import BetForm from '@/components/BetForm';
 import BetsList from '@/components/BetsList';
+import OddsGraph from '@/components/OddsGraph';
 
 interface BackendMarket {
   mid?: number;
@@ -105,6 +106,7 @@ export default function MarketPage({
   const [market, setMarket] = useState<Market | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshBets, setRefreshBets] = useState<(() => void) | null>(null);
+  const [refreshGraph, setRefreshGraph] = useState<(() => void) | null>(null);
   const [betsListReady, setBetsListReady] = useState(false);
 
   useEffect(() => {
@@ -129,17 +131,39 @@ export default function MarketPage({
   }, [params]);
 
   const handleBetPlaced = () => {
+    // Refresh both the bets list and the graph
     if (refreshBets && typeof refreshBets === 'function') {
       refreshBets();
     } else {
       console.log('refreshBets not available yet, skipping refresh');
     }
+    
+    if (refreshGraph && typeof refreshGraph === 'function') {
+      refreshGraph();
+    } else {
+      console.log('refreshGraph not available yet, skipping refresh');
+    }
   };
 
-  const handleBetsListRef = (refreshFn: () => void) => {
+  const handleManualRefresh = () => {
+    // Manual refresh of both components
+    if (refreshBets && typeof refreshBets === 'function') {
+      refreshBets();
+    }
+    
+    if (refreshGraph && typeof refreshGraph === 'function') {
+      refreshGraph();
+    }
+  };
+
+  const handleBetsListRef = useCallback((refreshFn: () => void) => {
     setRefreshBets(() => refreshFn);
     setBetsListReady(true);
-  };
+  }, []);
+
+  const handleGraphRef = useCallback((refreshFn: () => void) => {
+    setRefreshGraph(() => refreshFn);
+  }, []);
 
   if (isLoading) {
     return (
@@ -181,8 +205,22 @@ export default function MarketPage({
             <span className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800">
               ${market.volume.toFixed(2)} volume
             </span>
+            <button
+              onClick={handleManualRefresh}
+              className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
+            >
+              🔄 Refresh Data
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Odds Graph */}
+      <div className="mb-8">
+        <OddsGraph 
+          marketId={parseInt(marketId)} 
+          onRef={handleGraphRef}
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">

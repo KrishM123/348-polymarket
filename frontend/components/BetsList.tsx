@@ -71,15 +71,7 @@ export default function BetsList({ marketId, onRef }: BetsListProps) {
 
   return (
     <div className="lg:col-span-2">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Current Bets</h2>
-        <button
-          onClick={fetchBets}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
-          Refresh
-        </button>
-      </div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">Current Bets</h2>
       
       {bets.length === 0 ? (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
