@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { marketId: string; commentId: string } }
+    { params }: { params: Promise<{ marketId: string; commentId: string }> }
 ) {
     try {
-        const { marketId, commentId } = params;
-        const apiUrl = process.env.BACKEND_API_URL || 'http://localhost:5000';
+        const { marketId, commentId } = await params;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
         const body = await request.json();
         
         const response = await fetch(

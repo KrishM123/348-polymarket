@@ -1,7 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import { Market, Bet, Comment } from '@/types';
 import BetForm from '@/components/BetForm';
+import BetsList from '@/components/BetsList';
+import OddsGraph from '@/components/OddsGraph';
 import Comments from '@/components/Comments';
 
 interface BackendMarket {
@@ -27,11 +32,8 @@ interface BackendBet {
 
 async function getMarket(marketId: string): Promise<Market | null> {
   try {
-    // For server-side rendering, always use the local API route
-    const isServer = typeof window === 'undefined';
-    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
-    
-    const res = await fetch(`${apiUrl}/api/markets`, {
+    // For client-side, use the API route
+    const res = await fetch(`/api/markets`, {
       cache: 'no-store'
     });
     
@@ -94,19 +96,23 @@ async function getBets(marketId: string): Promise<Bet[]> {
   }
 }
 
+// -------- Comments API helper --------
 async function getComments(marketId: string): Promise<Comment[]> {
   try {
     const isServer = typeof window === 'undefined';
-    const apiUrl = isServer ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
-    
+    const apiUrl = isServer
+      ? 'http://localhost:3000'
+      : ''; // use relative path on client
+
     const res = await fetch(`${apiUrl}/api/markets/${marketId}/comments`, {
-      cache: 'no-store'
+      cache: 'no-store',
     });
-    
+
     if (!res.ok) {
-      throw new Error('Failed to fetch comments');
+      console.error('Comments fetch failed with status', res.status);
+      return [];
     }
-    
+
     const data = await res.json();
     return data.comments || [];
   } catch (error) {
@@ -115,137 +121,149 @@ async function getComments(marketId: string): Promise<Comment[]> {
   }
 }
 
-export default async function MarketPage({ 
+
+export default function MarketPage({ 
   params 
 }: { 
   params: Promise<{ marketId: string }> 
 }) {
-  const { marketId } = await params;
-  
-  const [market, bets, comments] = await Promise.all([
-    getMarket(marketId),
-    getBets(marketId),
-    getComments(marketId)
-  ]);
+  const [marketId, setMarketId] = useState<string>('');
+  const [market, setMarket] = useState<Market | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshBets, setRefreshBets] = useState<(() => void) | null>(null);
+  const [refreshGraph, setRefreshGraph] = useState<(() => void) | null>(null);
+  const [betsListReady, setBetsListReady] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const { marketId: id } = await params;
+      setMarketId(id);
+      
+      try {
+        const [marketData, commentsData] = await Promise.all([
+          getMarket(id),
+          getComments(id),
+        ]);
+        
+        setMarket(marketData);
+        setComments(commentsData);
+      } catch (error) {
+        console.error('Error loading market data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [params]);
+
+  const handleBetPlaced = () => {
+    // Refresh both the bets list and the graph
+    if (refreshBets && typeof refreshBets === 'function') {
+      refreshBets();
+    } else {
+      console.log('refreshBets not available yet, skipping refresh');
+    }
+    
+    if (refreshGraph && typeof refreshGraph === 'function') {
+      refreshGraph();
+    } else {
+      console.log('refreshGraph not available yet, skipping refresh');
+    }
+  };
+
+  const handleManualRefresh = () => {
+    // Manual refresh of both components
+    if (refreshBets && typeof refreshBets === 'function') {
+      refreshBets();
+    }
+    
+    if (refreshGraph && typeof refreshGraph === 'function') {
+      refreshGraph();
+    }
+  };
+
+  const handleBetsListRef = useCallback((refreshFn: () => void) => {
+    setRefreshBets(() => refreshFn);
+    setBetsListReady(true);
+  }, []);
+
+  const handleGraphRef = useCallback((refreshFn: () => void) => {
+    setRefreshGraph(() => refreshFn);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <p className="text-gray-500">Loading market...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!market) {
     notFound();
   }
 
-  const totalBets = bets.length;
-  const totalStake = bets.reduce((sum, bet) => sum + bet.amt, 0);
-  const yesCount = bets.filter(bet => bet.yes).length;
-  const noCount = bets.filter(bet => !bet.yes).length;
-
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <Link 
-          href="/markets" 
+        <Link
+          href="/markets"
           className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
         >
           ← Back to Markets
         </Link>
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">{market.name}</h1>
-            {market.description && (
-              <p className="text-gray-600">{market.description}</p>
-            )}
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">{market!.name}</h1>
+            {market!.description && <p className="text-gray-600">{market!.description}</p>}
           </div>
-          
+
           <div className="flex items-center gap-3">
             <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
-              {market.podd}x odds
+              {market!.podd}x odds
             </span>
             <span className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800">
-              ${market.volume.toFixed(2)} volume
+              ${market!.volume.toFixed(2)} volume
             </span>
+            <button
+              onClick={handleManualRefresh}
+              className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
+            >
+              🔄 Refresh Data
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-2xl font-bold text-gray-900">{totalBets}</div>
-          <div className="text-sm text-gray-600">Total Bets</div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-2xl font-bold text-gray-900">${totalStake.toFixed(2)}</div>
-          <div className="text-sm text-gray-600">Total Amount</div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-2xl font-bold text-green-600">{yesCount}</div>
-          <div className="text-sm text-gray-600">YES Bets</div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-2xl font-bold text-red-600">{noCount}</div>
-          <div className="text-sm text-gray-600">NO Bets</div>
-        </div>
+      {/* Odds Graph */}
+      <div className="mb-8">
+        <OddsGraph 
+          marketId={parseInt(marketId)} 
+          onRef={handleGraphRef}
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Bets List */}
-        <div className="lg:col-span-2">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Current Bets</h2>
-          
-          {bets.length === 0 ? (
-            <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-gray-500">No bets placed yet. Be the first to place a bet!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {bets.map((bet) => (
-                <div key={bet.bId} className="bg-white rounded-lg border border-gray-200 p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          bet.yes ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {bet.yes ? 'YES' : 'NO'}
-                        </span>
-                        <span className="font-medium text-gray-900">#{bet.bId}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {bet.uname ? `${bet.uname} (ID: ${bet.uId})` : `User #${bet.uId}`}
-                      </div>
-                      {bet.createdAt && (
-                        <div className="text-xs text-gray-500">
-                          {new Date(bet.createdAt).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <div className="font-medium text-gray-900">{bet.podd}x</div>
-                        <div className="text-gray-600">Odds</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-gray-900">${bet.amt.toFixed(2)}</div>
-                        <div className="text-gray-600">Amount</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-green-600">${(bet.amt * bet.podd).toFixed(2)}</div>
-                        <div className="text-gray-600">Potential Win</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <BetsList 
+          marketId={parseInt(marketId)} 
+          onRef={handleBetsListRef}
+        />
 
         {/* Bet Form */}
         <div className="lg:col-span-1">
           <div className="sticky top-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Place a Bet</h2>
-            <BetForm marketId={market.mId} />
+            <BetForm 
+              marketId={market.mId} 
+              onBetPlaced={handleBetPlaced}
+            />
           </div>
         </div>
       </div>

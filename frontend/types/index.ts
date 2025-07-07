@@ -18,17 +18,18 @@ export interface Bet {
   createdAt?: string;
 }
 
+export interface Comment {
+  cId: number;
+  uId: number;
+  mId?: number;
+  content: string;
+  created_at: string;
+  uname?: string;
+  level?: number;
+  parent_id?: number | null;
+}
+
 export interface NewBet {
   amt: number;
   yes: boolean;
-}
-
-export interface Comment {
-  cId: number;
-  content: string;
-  created_at: string;
-  uId: number;
-  uname: string;
-  parent_id: number | null;
-  level: number;
 } 

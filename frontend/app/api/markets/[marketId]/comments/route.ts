@@ -2,18 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { marketId: string } }
+    { params }: { params: Promise<{ marketId: string }> }
 ) {
     try {
-        const marketId = params.marketId;
-        const apiUrl = process.env.BACKEND_API_URL || 'http://localhost:5000';
+        const { marketId } = await params;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
         
         const response = await fetch(`${apiUrl}/markets/${marketId}/comments`, {
             cache: 'no-store'
         });
         
         if (!response.ok) {
-            throw new Error('Failed to fetch comments');
+            const errorText = await response.text();
+            console.error('Comments API error:', errorText);
+            return NextResponse.json(
+                { error: 'Failed to fetch comments', details: errorText },
+                { status: response.status }
+            );
         }
         
         const data = await response.json();
@@ -22,7 +27,7 @@ export async function GET(
     } catch (error) {
         console.error('Error in comments API route:', error);
         return NextResponse.json(
-            { error: 'Failed to fetch comments' },
+            { error: 'Failed to fetch comments', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
         );
     }
@@ -30,11 +35,11 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { marketId: string } }
+    { params }: { params: Promise<{ marketId: string }> }
 ) {
     try {
-        const marketId = params.marketId;
-        const apiUrl = process.env.BACKEND_API_URL || 'http://localhost:5000';
+        const { marketId } = await params;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
         const body = await request.json();
         
         const response = await fetch(`${apiUrl}/markets/${marketId}/comments`, {
@@ -50,7 +55,12 @@ export async function POST(
         });
         
         if (!response.ok) {
-            throw new Error('Failed to create comment');
+            const errorText = await response.text();
+            console.error('Comment creation error:', errorText);
+            return NextResponse.json(
+                { error: 'Failed to create comment', details: errorText },
+                { status: response.status }
+            );
         }
         
         const data = await response.json();
@@ -59,7 +69,7 @@ export async function POST(
     } catch (error) {
         console.error('Error in comments API route:', error);
         return NextResponse.json(
-            { error: 'Failed to create comment' },
+            { error: 'Failed to create comment', details: error instanceof Error ? error.message : String(error) },
             { status: 500 }
         );
     }

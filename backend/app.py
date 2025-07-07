@@ -18,6 +18,7 @@ app = Flask(__name__)
 # Enable CORS for all routes
 CORS(app, resources={
     r"/auth/*": {"origins": "http://localhost:3000"},
+    r"/markets/*": {"origins": "http://localhost:3000"},
     r"/api/*": {"origins": "http://localhost:3000"}
 })
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -100,8 +101,8 @@ def token_required(f):
             # Remove 'Bearer ' from token
             token = token.split(' ')[1]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            # You can add the current user to the request context if needed
-            # current_user = data['user_id']
+            # Add the current user to the request context
+            request.current_user = data
         except Exception as e:
             return jsonify({'error': 'Token is invalid'}), 401
             
@@ -204,7 +205,7 @@ def login():
             'user_id': user['uid'],
             'username': user['uname'],
             'exp': datetime.utcnow() + timedelta(seconds=TOKEN_EXPIRATION)
-        }, app.config['SECRET_KEY'])
+        }, app.config['SECRET_KEY'], algorithm='HS256')
         
         return jsonify({
             'message': 'Login successful',
@@ -350,6 +351,7 @@ def get_market_bets(market_id):
         return jsonify({'error': 'Failed to fetch bets'}), 500
 
 @app.route('/markets/<int:market_id>/bets', methods=['POST'])
+@token_required
 def create_bet(market_id):
     """Create a new bet on a specific market"""
     connection = get_db_connection()
@@ -360,13 +362,15 @@ def create_bet(market_id):
         # Get JSON data from request
         data = request.get_json()
         
-        # Validate required fields - removed 'odds' since users can only bet at current market odds
-        required_fields = ['user_id', 'amount', 'prediction']
+        # Get user ID from JWT token
+        user_id = request.current_user['user_id']
+        
+        # Validate required fields - removed 'user_id' since it comes from token
+        required_fields = ['amount', 'prediction']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        user_id = data['user_id']
         amount = float(data['amount'])
         prediction = bool(data['prediction'])  # True for YES, False for NO
         
@@ -469,47 +473,71 @@ def get_market_comments(market_id):
             return jsonify({'error': 'Market not found'}), 404
         
         # Get all comments for the market with user information
-        # This query uses a recursive CTE to build the comment tree
+        # Using a two-step approach: first get all comments, then get parent relationships
         cursor.execute("""
-            WITH RECURSIVE CommentTree AS (
-                -- Base case: Get all top-level comments (comments with no parents)
-                SELECT 
-                    c.cId,
-                    c.content,
-                    c.created_at,
-                    c.uId,
-                    u.uname,
-                    NULL as parent_id,
-                    0 as level
-                FROM comments c
-                JOIN users u ON c.uId = u.uid
-                WHERE c.mId = %s
-                AND NOT EXISTS (
-                    SELECT 1 FROM isParentOf ip WHERE ip.cCId = c.cId
-                )
-                
-                UNION ALL
-                
-                -- Recursive case: Get replies to comments
-                SELECT 
-                    c.cId,
-                    c.content,
-                    c.created_at,
-                    c.uId,
-                    u.uname,
-                    ip.pCId as parent_id,
-                    ct.level + 1
-                FROM comments c
-                JOIN users u ON c.uId = u.uid
-                JOIN isParentOf ip ON c.cId = ip.cCId
-                JOIN CommentTree ct ON ip.pCId = ct.cId
-                WHERE c.mId = %s
-            )
-            SELECT * FROM CommentTree
-            ORDER BY level, created_at;
-        """, (market_id, market_id))
+            SELECT 
+                c.cId,
+                c.content,
+                c.created_at,
+                c.uId,
+                u.uname
+            FROM comments c
+            JOIN users u ON c.uId = u.uid
+            WHERE c.mId = %s
+            ORDER BY c.created_at;
+        """, (market_id,))
         
         comments = cursor.fetchall()
+        
+        # Get parent-child relationships for comments in this market
+        cursor.execute("""
+            SELECT ip.pCId, ip.cCId
+            FROM isParentOf ip
+            JOIN comments c ON ip.cCId = c.cId
+            WHERE c.mId = %s
+        """, (market_id,))
+        
+        parent_relationships = cursor.fetchall()
+        
+        # Create a mapping of child to parent
+        child_to_parent = {}
+        for rel in parent_relationships:
+            child_to_parent[rel['cCId']] = rel['pCId']
+        
+        # Build the threaded comment structure
+        def calculate_level(comment_id, visited=None):
+            if visited is None:
+                visited = set()
+            if comment_id in visited:
+                return 0  # Prevent infinite loops
+            visited.add(comment_id)
+            
+            if comment_id not in child_to_parent:
+                return 0  # Top-level comment
+            parent_id = child_to_parent[comment_id]
+            return 1 + calculate_level(parent_id, visited)
+        
+        # Add threading information to comments
+        threaded_comments = []
+        for comment in comments:
+            comment_id = comment['cId']
+            parent_id = child_to_parent.get(comment_id)
+            level = calculate_level(comment_id)
+            
+            threaded_comments.append({
+                'cId': comment['cId'],
+                'content': comment['content'],
+                'created_at': comment['created_at'],
+                'uId': comment['uId'],
+                'uname': comment['uname'],
+                'parent_id': parent_id,
+                'level': level
+            })
+        
+        # Sort by level first, then by creation time
+        threaded_comments.sort(key=lambda x: (x['level'], x['created_at']))
+        
+        comments = threaded_comments
         
         # Convert datetime objects to strings for JSON serialization
         for comment in comments:

@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 type User = {
+  id: number;
   username: string;
   email: string;
   name?: string;
@@ -13,6 +14,7 @@ type User = {
 
 type AuthContextType = {
   user: User | null;
+  token: string | null;
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   createAccount: (
     username: string, 
@@ -43,23 +45,64 @@ const users: UserStorage = {};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  // Load user from localStorage and cookies on app startup
+  useEffect(() => {
+    const storedToken = localStorage.getItem('authToken') || 
+                       document.cookie.split('; ').find(row => row.startsWith('authToken='))?.split('=')[1];
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedToken && storedUser) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error loading stored auth data:', error);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+    }
+  }, []);
 
   const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const response = await fetch('http://localhost:5000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password
+        }),
+      });
       
-      const user = users[username.toLowerCase()];
-      if (user && user.password === password) {
-        setUser({ username: user.username, email: user.email });
-        return { success: true };
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, message: data.error || 'Login failed' };
       }
-      return { success: false, message: 'Invalid username or password' };
+
+      // Store token and user data
+      setToken(data.token);
+      setUser(data.user);
+      
+      // Store token in localStorage for persistence
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Also store in cookies for SSR compatibility
+      document.cookie = `authToken=${data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax`;
+      
+      return { success: true };
     } catch (error) {
-      return { success: false, message: 'An error occurred during login' };
+      console.error('Login error:', error);
+      return { success: false, message: 'Failed to connect to server' };
     } finally {
       setIsLoading(false);
     }
@@ -94,20 +137,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, message: data.error || 'Registration failed' };
       }
 
-      users[username.toLowerCase()] = { 
-        username, 
-        email, 
-        password, 
-        name, 
-        phoneNumber 
-      };
-      setUser({ 
-        username, 
-        email, 
-        name: name || '', 
-        phoneNumber: phoneNumber || '' 
-      });
+      // After successful registration, automatically log in
+      const loginResult = await login(username, password);
+      if (loginResult.success) {
       return { success: true };
+      } else {
+        return { success: false, message: 'Account created but login failed' };
+      }
     } catch (error) {
       console.error('Registration error:', error);
       return { success: false, message: 'Failed to connect to server' };
@@ -118,7 +154,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     setIsLoading(false);
+    // Clear localStorage
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    
+    // Clear cookies
+    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     router.push('/');
   };
 
@@ -126,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider 
       value={{ 
         user, 
+        token,
         login, 
         createAccount,
         logout, 
