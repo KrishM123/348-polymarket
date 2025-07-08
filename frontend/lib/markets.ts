@@ -7,6 +7,12 @@ export interface Market {
   end_date: string;
 }
 
+export interface MarketsResponse {
+  success: boolean;
+  markets: Market[];
+  count: number;
+}
+
 export interface Bet {
   bId: number;
   uId: number;
@@ -16,12 +22,6 @@ export interface Bet {
   yes: number;
   createdAt: string;
   uname: string;
-}
-
-export interface MarketsResponse {
-  success: boolean;
-  markets: Market[];
-  count: number;
 }
 
 export interface BetRequest {
