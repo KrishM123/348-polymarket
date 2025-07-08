@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
+  updateUserBalance: (newBalance: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +28,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if user is logged in on app start
     const token = tokenStorage.getToken();
     const savedUser = tokenStorage.getUser();
 
@@ -51,8 +51,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsAuthenticated(false);
   };
 
+  const updateUserBalance = (newBalance: number) => {
+    if (user) {
+      const updatedUser = { ...user, balance: newBalance };
+      setUser(updatedUser);
+      tokenStorage.setUser(updatedUser);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated, login, logout, updateUserBalance }}
+    >
       {children}
     </AuthContext.Provider>
   );

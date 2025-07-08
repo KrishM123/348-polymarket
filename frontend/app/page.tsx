@@ -15,33 +15,28 @@ export default function Home() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const fetchMarkets = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await marketsAPI.getMarkets();
+        setMarkets(response.markets);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch markets"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchMarkets();
   }, []);
-
-  const fetchMarkets = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await marketsAPI.getMarkets();
-      setMarkets(response.markets);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch markets");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="px-8 py-6">
       <div className="mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Prediction Markets</h1>
-          <div className="text-sm text-gray-500">
-            {markets.length} active markets
-          </div>
-        </div>
-
         {!isAuthenticated && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />

@@ -61,7 +61,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market }) => {
       className="hover:shadow-lg transition-shadow cursor-pointer"
       onClick={handleClick}
     >
-      <CardHeader className="pb-4">
+      <CardHeader>
         <div className="flex-1">
           <CardTitle className="text-lg line-clamp-2">{market.name}</CardTitle>
           <CardDescription className="line-clamp-2 mt-2">
@@ -70,7 +70,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market }) => {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         {/* Visual Odds Representation */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm font-medium">
@@ -96,7 +96,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market }) => {
         </div>
 
         {/* Bottom Info Row */}
-        <div className="flex justify-between items-center pt-2 border-t text-xs text-gray-500">
+        <div className="flex justify-between items-center pt-4 border-t text-xs text-gray-500">
           <div className="flex items-center gap-1">
             <DollarSign className="h-3 w-3" />
             <span>{formatVolume(market.volume)}</span>

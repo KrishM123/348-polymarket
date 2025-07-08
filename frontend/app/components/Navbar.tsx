@@ -18,7 +18,9 @@ const Navbar = () => {
   return (
     <>
       <div className="flex justify-between items-center px-8 py-4 bg-white shadow-sm">
-        <div className="text-2xl font-bold text-blue-600">Polymarket</div>
+        <a href="/" className="text-2xl font-bold text-blue-600">
+          Polymarket
+        </a>
 
         <div className="flex items-center gap-4">
           {isAuthenticated ? (

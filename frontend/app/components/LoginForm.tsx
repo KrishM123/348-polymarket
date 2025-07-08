@@ -53,7 +53,6 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // Reset form when closing
       setUsername("");
       setPassword("");
       setError("");
