@@ -441,73 +441,18 @@ def get_market_comments(market_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
+        # Get threaded comments using recursive CTE
         cursor = connection.cursor(dictionary=True)
-        
-        # First check if market exists
-        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
-        if not cursor.fetchone():
-            cursor.close()
-            connection.close()
-            return jsonify({'error': 'Market not found'}), 404
-        
-        # Get all comments for the market with user information
-        # Using a two-step approach: first get all comments, then get parent relationships
-        cursor.execute(sql.get_query('comments.get_market_comments'), (market_id,))
-        
+        cursor.execute(sql.get_query('comments.get_threaded_comments'), (market_id, market_id))
         comments = cursor.fetchall()
-        
-        # Get parent-child relationships for comments in this market
-        cursor.execute(sql.get_query('comments.get_comment_parent_relationships'), (market_id,))
-        
-        parent_relationships = cursor.fetchall()
-        
-        # Create a mapping of child to parent
-        child_to_parent = {}
-        for rel in parent_relationships:
-            child_to_parent[rel['cCId']] = rel['pCId']
-        
-        # Build the threaded comment structure
-        def calculate_level(comment_id, visited=None):
-            if visited is None:
-                visited = set()
-            if comment_id in visited:
-                return 0  # Prevent infinite loops
-            visited.add(comment_id)
-            
-            if comment_id not in child_to_parent:
-                return 0  # Top-level comment
-            parent_id = child_to_parent[comment_id]
-            return 1 + calculate_level(parent_id, visited)
-        
-        # Add threading information to comments
-        threaded_comments = []
-        for comment in comments:
-            comment_id = comment['cId']
-            parent_id = child_to_parent.get(comment_id)
-            level = calculate_level(comment_id)
-            
-            threaded_comments.append({
-                'cId': comment['cId'],
-                'content': comment['content'],
-                'created_at': comment['created_at'],
-                'uId': comment['uId'],
-                'uname': comment['uname'],
-                'parent_id': parent_id,
-                'level': level
-            })
-        
-        # Sort by level first, then by creation time
-        threaded_comments.sort(key=lambda x: (x['level'], x['created_at']))
-        
-        comments = threaded_comments
-        
+
         # Convert datetime objects to strings for JSON serialization
         for comment in comments:
             comment['created_at'] = comment['created_at'].isoformat()
-        
+
         cursor.close()
         connection.close()
-        
+
         return jsonify({
             'success': True,
             'market_id': market_id,
