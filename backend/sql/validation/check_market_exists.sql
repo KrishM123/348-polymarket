@@ -1,0 +1,1 @@
+SELECT mid FROM markets WHERE mid = %s 
