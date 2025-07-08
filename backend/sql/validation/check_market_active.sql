@@ -1,0 +1,1 @@
+SELECT mid, podd FROM markets WHERE mid = %s AND end_date > NOW() 

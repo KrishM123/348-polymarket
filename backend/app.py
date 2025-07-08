@@ -9,9 +9,13 @@ import bcrypt
 import jwt
 from functools import wraps
 from dotenv import load_dotenv
+from sql_loader import SQLLoader
 
 # Load environment variables
 load_dotenv()
+
+# Initialize SQL loader
+sql = SQLLoader()
 
 app = Flask(__name__)
 
@@ -56,13 +60,7 @@ def calculate_market_odds(market_id, cursor):
     """
     try:
         # Get total volume on YES and NO sides
-        cursor.execute("""
-            SELECT 
-                COALESCE(SUM(CASE WHEN yes = 1 THEN amt ELSE 0 END), 0) as yes_volume,
-                COALESCE(SUM(CASE WHEN yes = 0 THEN amt ELSE 0 END), 0) as no_volume
-            FROM bets 
-            WHERE mId = %s
-        """, (market_id,))
+        cursor.execute(sql.get_query('markets.get_market_volume_distribution'), (market_id,))
         
         result = cursor.fetchone()
         yes_volume = float(result[0]) if result[0] else 0.0
@@ -93,19 +91,26 @@ def calculate_market_odds(market_id, cursor):
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': 'Authorization header missing'}), 401
+
+        # Accept both "Bearer <token>" and raw token
+        parts = auth_header.split()
+        token = parts[1] if len(parts) == 2 and parts[0].lower() == 'bearer' else parts[0]
+
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
-        
+
         try:
-            # Remove 'Bearer ' from token
-            token = token.split(' ')[1]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             # Add the current user to the request context
             request.current_user = data
-        except Exception as e:
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token has expired'}), 401
+        except jwt.InvalidTokenError:
             return jsonify({'error': 'Token is invalid'}), 401
-            
+
         return f(*args, **kwargs)
     return decorated
 
@@ -137,14 +142,14 @@ def register():
         cursor = connection.cursor(dictionary=True)
         
         # Check if username already exists
-        cursor.execute("SELECT uid FROM users WHERE uname = %s", (username,))
+        cursor.execute(sql.get_query('auth.check_username_exists'), (username,))
         if cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Username already exists'}), 400
             
         # Check if email already exists
-        cursor.execute("SELECT uid FROM users WHERE email = %s", (email,))
+        cursor.execute(sql.get_query('auth.check_email_exists'), (email,))
         if cursor.fetchone():
             cursor.close()
             connection.close()
@@ -154,10 +159,7 @@ def register():
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         
         # Insert the new user
-        cursor.execute("""
-            INSERT INTO users (uname, email, passwordHash, phoneNumber)
-            VALUES (%s, %s, %s, %s)
-        """, (username, email, hashed_password.decode('utf-8'), phone_number))
+        cursor.execute(sql.get_query('auth.insert_user'), (username, email, hashed_password.decode('utf-8'), phone_number))
         
         user_id = cursor.lastrowid
         connection.commit()
@@ -188,7 +190,7 @@ def login():
             return jsonify({'error': 'Database connection failed'}), 500
             
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE uname = %s", (username,))
+        cursor.execute(sql.get_query('auth.get_user_by_username'), (username,))
         user = cursor.fetchone()
         cursor.close()
         connection.close()
@@ -231,12 +233,7 @@ def get_markets():
     
     try:
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT mid, name, description, podd, volume, end_date 
-            FROM markets 
-            WHERE end_date > NOW()
-            ORDER BY end_date ASC
-        """)
+        cursor.execute(sql.get_query('markets.get_all_markets'))
         
         markets = cursor.fetchall()
         
@@ -272,11 +269,7 @@ def get_market(market_id):
         cursor = connection.cursor(dictionary=True)
         
         # Get market information
-        cursor.execute("""
-            SELECT mid, name, description, podd, volume, end_date 
-            FROM markets 
-            WHERE mid = %s
-        """, (market_id,))
+        cursor.execute(sql.get_query('markets.get_market_by_id'), (market_id,))
         
         market = cursor.fetchone()
         if not market:
@@ -313,20 +306,14 @@ def get_market_bets(market_id):
         cursor = connection.cursor(dictionary=True)
         
         # First check if market exists
-        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Get all bets for the market with user information
-        cursor.execute("""
-            SELECT b.bId, b.uId, b.mId, b.podd, b.amt, b.yes, b.createdAt, u.uname
-            FROM bets b
-            JOIN users u ON b.uId = u.uid
-            WHERE b.mId = %s
-            ORDER BY b.createdAt DESC
-        """, (market_id,))
+        cursor.execute(sql.get_query('markets.get_market_bets'), (market_id,))
         
         bets = cursor.fetchall()
         
@@ -381,7 +368,7 @@ def create_bet(market_id):
         cursor = connection.cursor()
         
         # Check if market exists and is still active, and get current odds
-        cursor.execute("SELECT mid, podd FROM markets WHERE mid = %s AND end_date > NOW()", (market_id,))
+        cursor.execute(sql.get_query('validation.check_market_active'), (market_id,))
         market_result = cursor.fetchone()
         if not market_result:
             cursor.close()
@@ -391,7 +378,7 @@ def create_bet(market_id):
         current_odds = float(market_result[1])
         
         # Check if user exists and has sufficient balance
-        cursor.execute("SELECT uid, balance FROM users WHERE uid = %s", (user_id,))
+        cursor.execute(sql.get_query('bets.get_user_balance'), (user_id,))
         user = cursor.fetchone()
         if not user:
             cursor.close()
@@ -405,28 +392,19 @@ def create_bet(market_id):
         
         try:
             # Insert the bet using current market odds
-            cursor.execute("""
-                INSERT INTO bets (uId, mId, podd, amt, yes)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, market_id, current_odds, amount, prediction))
+            cursor.execute(sql.get_query('bets.insert_bet'), (user_id, market_id, current_odds, amount, prediction))
             
             bet_id = cursor.lastrowid
             
             # Update user balance
-            cursor.execute("""
-                UPDATE users SET balance = balance - %s WHERE uid = %s
-            """, (amount, user_id))
+            cursor.execute(sql.get_query('bets.update_user_balance'), (amount, user_id))
             
             # Update market volume
-            cursor.execute("""
-                UPDATE markets SET volume = volume + %s WHERE mid = %s
-            """, (amount, market_id))
+            cursor.execute(sql.get_query('markets.update_market_volume'), (amount, market_id))
             
             # Recalculate and update market odds based on new volume distribution
             new_odds = calculate_market_odds(market_id, cursor)
-            cursor.execute("""
-                UPDATE markets SET podd = %s WHERE mid = %s
-            """, (new_odds, market_id))
+            cursor.execute(sql.get_query('markets.update_market_odds'), (new_odds, market_id))
             
             cursor.close()
             connection.close()
@@ -463,89 +441,18 @@ def get_market_comments(market_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
+        # Get threaded comments using recursive CTE
         cursor = connection.cursor(dictionary=True)
-        
-        # First check if market exists
-        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
-        if not cursor.fetchone():
-            cursor.close()
-            connection.close()
-            return jsonify({'error': 'Market not found'}), 404
-        
-        # Get all comments for the market with user information
-        # Using a two-step approach: first get all comments, then get parent relationships
-        cursor.execute("""
-            SELECT 
-                c.cId,
-                c.content,
-                c.created_at,
-                c.uId,
-                u.uname
-            FROM comments c
-            JOIN users u ON c.uId = u.uid
-            WHERE c.mId = %s
-            ORDER BY c.created_at;
-        """, (market_id,))
-        
+        cursor.execute(sql.get_query('comments.get_threaded_comments'), (market_id, market_id))
         comments = cursor.fetchall()
-        
-        # Get parent-child relationships for comments in this market
-        cursor.execute("""
-            SELECT ip.pCId, ip.cCId
-            FROM isParentOf ip
-            JOIN comments c ON ip.cCId = c.cId
-            WHERE c.mId = %s
-        """, (market_id,))
-        
-        parent_relationships = cursor.fetchall()
-        
-        # Create a mapping of child to parent
-        child_to_parent = {}
-        for rel in parent_relationships:
-            child_to_parent[rel['cCId']] = rel['pCId']
-        
-        # Build the threaded comment structure
-        def calculate_level(comment_id, visited=None):
-            if visited is None:
-                visited = set()
-            if comment_id in visited:
-                return 0  # Prevent infinite loops
-            visited.add(comment_id)
-            
-            if comment_id not in child_to_parent:
-                return 0  # Top-level comment
-            parent_id = child_to_parent[comment_id]
-            return 1 + calculate_level(parent_id, visited)
-        
-        # Add threading information to comments
-        threaded_comments = []
-        for comment in comments:
-            comment_id = comment['cId']
-            parent_id = child_to_parent.get(comment_id)
-            level = calculate_level(comment_id)
-            
-            threaded_comments.append({
-                'cId': comment['cId'],
-                'content': comment['content'],
-                'created_at': comment['created_at'],
-                'uId': comment['uId'],
-                'uname': comment['uname'],
-                'parent_id': parent_id,
-                'level': level
-            })
-        
-        # Sort by level first, then by creation time
-        threaded_comments.sort(key=lambda x: (x['level'], x['created_at']))
-        
-        comments = threaded_comments
-        
+
         # Convert datetime objects to strings for JSON serialization
         for comment in comments:
             comment['created_at'] = comment['created_at'].isoformat()
-        
+
         cursor.close()
         connection.close()
-        
+
         return jsonify({
             'success': True,
             'market_id': market_id,
@@ -579,24 +486,21 @@ def create_comment(market_id):
         cursor = connection.cursor()
         
         # Check if market exists
-        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Check if user exists
-        cursor.execute("SELECT uid FROM users WHERE uid = %s", (user_id,))
+        cursor.execute(sql.get_query('validation.check_user_exists'), (user_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
         # Insert the comment
-        cursor.execute("""
-            INSERT INTO comments (uId, mId, content)
-            VALUES (%s, %s, %s)
-        """, (user_id, market_id, content))
+        cursor.execute(sql.get_query('comments.insert_comment'), (user_id, market_id, content))
         
         comment_id = cursor.lastrowid
         
@@ -638,24 +542,21 @@ def create_reply(market_id, parent_id):
         cursor = connection.cursor()
         
         # Check if market exists
-        cursor.execute("SELECT mid FROM markets WHERE mid = %s", (market_id,))
+        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Check if parent comment exists and belongs to this market
-        cursor.execute("""
-            SELECT cId FROM comments 
-            WHERE cId = %s AND mId = %s
-        """, (parent_id, market_id))
+        cursor.execute(sql.get_query('validation.check_comment_exists_in_market'), (parent_id, market_id))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Parent comment not found'}), 404
         
         # Check if user exists
-        cursor.execute("SELECT uid FROM users WHERE uid = %s", (user_id,))
+        cursor.execute(sql.get_query('validation.check_user_exists'), (user_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
@@ -666,18 +567,12 @@ def create_reply(market_id, parent_id):
         
         try:
             # Insert the reply comment
-            cursor.execute("""
-                INSERT INTO comments (uId, mId, content)
-                VALUES (%s, %s, %s)
-            """, (user_id, market_id, content))
+            cursor.execute(sql.get_query('comments.insert_reply'), (user_id, market_id, content))
             
             reply_id = cursor.lastrowid
             
             # Create the parent-child relationship
-            cursor.execute("""
-                INSERT INTO isParentOf (pCId, cCId)
-                VALUES (%s, %s)
-            """, (parent_id, reply_id))
+            cursor.execute(sql.get_query('comments.create_parent_child_relationship'), (parent_id, reply_id))
             
             connection.commit()
             

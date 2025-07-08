@@ -1,0 +1,1 @@
+SELECT uid FROM users WHERE email = %s 

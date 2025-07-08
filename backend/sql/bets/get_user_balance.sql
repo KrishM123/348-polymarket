@@ -1,0 +1,1 @@
+SELECT uid, balance FROM users WHERE uid = %s 

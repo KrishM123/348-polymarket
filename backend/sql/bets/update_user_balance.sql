@@ -1,0 +1,1 @@
+UPDATE users SET balance = balance - %s WHERE uid = %s 

@@ -1,0 +1,1 @@
+UPDATE markets SET volume = volume + %s WHERE mid = %s 
