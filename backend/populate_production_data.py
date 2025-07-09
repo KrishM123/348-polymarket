@@ -20,6 +20,7 @@ import numpy as np
 from typing import List, Dict, Any
 from tqdm import tqdm
 import time
+from sql_loader import SQLLoader
 
 # Load environment variables
 load_dotenv()
@@ -42,6 +43,9 @@ fake = faker.Faker()
 # Configuration for batch sizes
 BATCH_SIZE = 100  # Process users in batches of 100
 COMMIT_FREQUENCY = 1000  # Commit every 1000 operations
+
+# Initialize SQL loader
+sql_loader = SQLLoader(os.path.join(os.path.dirname(__file__), 'sql'))
 
 def get_db_connection():
     """Create and return a database connection"""
@@ -92,15 +96,15 @@ def create_production_users(connection, num_users: int = 10000) -> List[int]:
         
         users_data.append((username, password_hash, email, phone, balance))
     
+    # Get insert user SQL
+    insert_user_sql = sql_loader.get_query('auth.insert_user')
+    
     # Insert users in batches
     print("Inserting users in batches...")
     for i in tqdm(range(0, len(users_data), BATCH_SIZE)):
         batch = users_data[i:i + BATCH_SIZE]
         try:
-            cursor.executemany("""
-                INSERT INTO users (uname, passwordHash, email, phoneNumber, balance)
-                VALUES (%s, %s, %s, %s, %s)
-            """, batch)
+            cursor.executemany(insert_user_sql, batch)
             
             # Get the range of inserted IDs
             cursor.execute("SELECT LAST_INSERT_ID()")
@@ -125,9 +129,14 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         {'type': 'small_stake', 'amt_range': (10, 100), 'frequency': 0.6}
     ]
     
+    # Get SQL queries
+    insert_bet_sql = sql_loader.get_query('bets.insert_bet')
+    update_balance_sql = sql_loader.get_query('bets.update_user_balance')
+    get_market_odds_sql = "SELECT mid, podd FROM markets"  # Simple query, keep as is
+    
     # Pre-calculate market odds for efficiency
     print("Fetching market odds...")
-    cursor.execute("SELECT mid, podd FROM markets")
+    cursor.execute(get_market_odds_sql)
     market_odds_map = dict(cursor.fetchall())
     
     # Process users in batches
@@ -137,9 +146,7 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         
         # Fetch balances for batch
         cursor.execute(
-            "SELECT uid, balance FROM users WHERE uid IN ({})".format(
-                ','.join(['%s'] * len(batch_users))
-            ),
+            sql_loader.get_query('bets.get_user_balance'),
             batch_users
         )
         user_balances = dict(cursor.fetchall())
@@ -189,23 +196,22 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         
         # Batch insert bets
         if bets_data:
-            cursor.executemany("""
-                INSERT INTO bets (uId, mId, podd, amt, yes)
-                VALUES (%s, %s, %s, %s, %s)
-            """, bets_data)
+            cursor.executemany(insert_bet_sql, bets_data)
         
         # Batch update balances
         if balance_updates:
-            cursor.executemany("""
-                UPDATE users SET balance = balance - %s
-                WHERE uid = %s
-            """, balance_updates)
+            cursor.executemany(update_balance_sql, balance_updates)
     
     cursor.close()
 
 def create_production_comments(connection, user_ids: List[int], market_ids: List[int]):
     """Create realistic comment threads with varied engagement"""
     cursor = connection.cursor()
+    
+    # Get SQL queries
+    insert_comment_sql = sql_loader.get_query('comments.insert_comment')
+    insert_reply_sql = sql_loader.get_query('comments.insert_reply')
+    create_parent_child_sql = sql_loader.get_query('comments.create_parent_child_relationship')
     
     # Comment templates and components (existing code...)
     comment_templates = [
@@ -274,11 +280,7 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                     observation=random.choice(observations)
                 )
                 
-                cursor.execute("""
-                    INSERT INTO comments (uId, mId, content)
-                    VALUES (%s, %s, %s)
-                """, (user_id, market_id, content))
-                
+                cursor.execute(insert_comment_sql, (user_id, market_id, content))
                 root_comment_id = cursor.lastrowid
                 
                 # Reduce number of replies for scale
@@ -308,10 +310,7 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                     replies_data.append((replier_id, market_id, reply_content))
                 
                 if replies_data:
-                    cursor.executemany("""
-                        INSERT INTO comments (uId, mId, content)
-                        VALUES (%s, %s, %s)
-                    """, replies_data)
+                    cursor.executemany(insert_reply_sql, replies_data)
                     
                     # Get the range of inserted reply IDs
                     start_id = cursor.lastrowid - len(replies_data) + 1
@@ -324,10 +323,7 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                             parent_id = child_id
                 
                 if parent_child_data:
-                    cursor.executemany("""
-                        INSERT INTO isParentOf (pCId, cCId)
-                        VALUES (%s, %s)
-                    """, parent_child_data)
+                    cursor.executemany(create_parent_child_sql, parent_child_data)
                 
             except Error as e:
                 print(f"Error creating comment thread: {e}")
