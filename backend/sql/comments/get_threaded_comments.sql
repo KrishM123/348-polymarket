@@ -1,5 +1,5 @@
 WITH RECURSIVE threaded_comments AS (
-    -- Base case: top-level comments (those that are not a child in isParentOf)
+    -- Base case: top-level comments
     SELECT
         c.cId,
         c.content,
