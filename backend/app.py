@@ -1,9 +1,8 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
-from datetime import datetime, timedelta
-import json
+from datetime import datetime, timedelta, timezone
 import os
 import bcrypt
 import jwt
@@ -11,7 +10,6 @@ from functools import wraps
 from dotenv import load_dotenv
 from sql_loader import SQLLoader
 
-# Load environment variables
 load_dotenv()
 
 # Initialize SQL loader
@@ -27,15 +25,15 @@ CORS(app, resources={
 })
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
-# Token expiration time (24 hours)
-TOKEN_EXPIRATION = 24 * 60 * 60  # 24 hours in seconds
+# Token expiration time
+TOKEN_EXPIRATION = 24 * 60 * 60
 
 # Database configuration from environment variables
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', '127.0.0.1'),
-    'user': os.getenv('DB_USER', 'polymarket'),
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
-    'database': os.getenv('DB_DATABASE', 'polymarket')
+    'database': os.getenv('DB_DATABASE')
 }
 
 def get_db_connection():
@@ -74,7 +72,6 @@ def calculate_market_odds(market_id, cursor):
         
         # Calculate probability based on volume distribution
         # Add a small smoothing factor to prevent division by zero and extreme odds
-        # This ensures the market always has some liquidity and reasonable odds
         smoothing_factor = 1.0
         yes_probability = (yes_volume + smoothing_factor) / (total_volume + 2 * smoothing_factor)
         
@@ -85,7 +82,7 @@ def calculate_market_odds(market_id, cursor):
         
     except Error as e:
         print(f"Error calculating market odds: {e}")
-        return 0.50  # Default fallback
+        return 0.50
 
 # Authentication decorator
 def token_required(f):
@@ -131,7 +128,7 @@ def register():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
             
-        # Validate password strength (at least 8 characters)
+        # Validate password strength
         if len(password) < 8:
             return jsonify({'error': 'Password must be at least 8 characters long'}), 400
             
@@ -206,7 +203,7 @@ def login():
         token = jwt.encode({
             'user_id': user['uid'],
             'username': user['uname'],
-            'exp': datetime.utcnow() + timedelta(seconds=TOKEN_EXPIRATION)
+            'exp': datetime.now(timezone.utc) + timedelta(seconds=TOKEN_EXPIRATION)
         }, app.config['SECRET_KEY'], algorithm='HS256')
         
         return jsonify({
@@ -241,7 +238,6 @@ def get_markets():
         for market in markets:
             if market['end_date']:
                 market['end_date'] = market['end_date'].isoformat()
-            # Convert Decimal to float for JSON serialization
             market['podd'] = float(market['podd'])
             market['volume'] = float(market['volume'])
         
@@ -352,7 +348,7 @@ def create_bet(market_id):
         # Get user ID from JWT token
         user_id = request.current_user['user_id']
         
-        # Validate required fields - removed 'user_id' since it comes from token
+        # Validate required fields
         required_fields = ['amount', 'prediction']
         for field in required_fields:
             if field not in data:
@@ -385,7 +381,7 @@ def create_bet(market_id):
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
-        if user[1] < amount:  # balance < amount
+        if user[1] < amount:
             cursor.close()
             connection.close()
             return jsonify({'error': 'Insufficient balance'}), 400
@@ -441,7 +437,7 @@ def get_market_comments(market_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        # Get threaded comments using recursive CTE
+        # Get threaded comments
         cursor = connection.cursor(dictionary=True)
         cursor.execute(sql.get_query('comments.get_threaded_comments'), (market_id, market_id))
         comments = cursor.fetchall()
@@ -562,16 +558,13 @@ def create_reply(market_id, parent_id):
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
-        # Start transaction
         connection.start_transaction()
         
         try:
-            # Insert the reply comment
             cursor.execute(sql.get_query('comments.insert_reply'), (user_id, market_id, content))
             
             reply_id = cursor.lastrowid
             
-            # Create the parent-child relationship
             cursor.execute(sql.get_query('comments.create_parent_child_relationship'), (parent_id, reply_id))
             
             connection.commit()
@@ -595,14 +588,6 @@ def create_reply(market_id, parent_id):
     except Error as e:
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create reply'}), 500
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
