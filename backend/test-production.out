@@ -1,0 +1,324 @@
+POLYMARKET DATABASE PRODUCTION TEST RESULTS
+================================================================================
+Generated on: 2025-07-08 20:59:32.376449
+================================================================================
+
+All Active Markets (Top 10)
+================================================================================
+            mid |            name |     description |            podd |          volume |        end_date
+---------------------------------------------------------------------------------------------------------
+              4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? | This is a market on whether Kanye West and Kim Kardashian will officially file for a divorce before January 1st 2021. Divorce can be defined empirically as either an official announcement direct from either Kim or Kanye, or an official filing of divorce, including but not limited to certified copies of divorce decrees available from the Superior Court in the county where the decree was granted. This market will resolve "Yes" if the aforementioned conditions are met and "No" otherwise. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.70 |        57964.41 | 2025-07-09 21:28:18
+              5 | Will Coinbase begin publicly trading before Jan 1, 2021? | This market is on whether Coinbase will be a publicly traded company by January 1, 2021. This market will resolve to Yes if Coinbase starts publicly trading on NASDAQ or NYSE before January 1st 2021. Regardless of if they list via IPO or direct listing. If they are not listed and publicly trading on one of those 2 exchanges, the market will resolve to "No". In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.09 |        47917.55 | 2025-07-10 21:28:18
+             39 | Will 'Lightyear' gross more than $90 million domestically on its opening weekend? | 'Lightyear' is an upcoming American computer-animated film produced by Pixar Animation Studios. It is a spin-off of the Toy Story film series, serving as an origin story for the fictional test astronaut character who the Buzz Lightyear toy figure featured in the main films was inspired by. It is scheduled for theatrical release in the USA on June 17, 2022.
+
+This is a market on how much 'Lightyear' will gross domestically on its opening weekend. The “Domestic Weekend” tab on https://www.boxofficemojo.com/release/rl6456065/ will be used to resolve this market once the values for the opening weekend (June 17-19) are final (i.e. not studio estimates).
+
+This market will resolve to "Yes" if 'Lightyear' grosses more than $90,000,000 on the opening weekend. Otherwise, this market will resolve to "No".
+
+Opening weekend is defined as the first Friday, Saturday, and Sunday of the film's release. Please note, this market will resolve according to the Box Office Mojo number under Domestic Weekend for the 3-day weekend, regardless of whether domestic refers to only the USA or to the USA and Canada, etc.
+
+If there is no final data available by June 26, 2022, 11:59:59 PM ET, another credible resolution source will be chosen. |            0.01 |         8676.66 | 2025-07-12 15:55:09
+             43 | Will any Belarusian bank be disconnected from SWIFT by April 30, 2022? | If the Society for Worldwide Interbank Financial Telecommunications Network (SWIFT Network) disconnects or otherwise restricts any Belarusian institution(s) in accordance with sanctions by April 30, 2022, 11:59:59 PM ET (inclusive), this market will resolve to “Yes”. Otherwise, this market will resolve to “No”.
+
+If any banks or institutions based in the Republic of Belarus are disconnected from SWIFT in accordance with sanctions and later reconnected, this market will resolve to “Yes”.
+
+If SWIFT announces it will be disconnecting any Belarusian banks or institutions in accordance with any sanctions but those sanctions go into effect after the resolution date for this market, the announcement will have no bearing on the resolution of this market.
+
+The primary resolution source for this market will be official information from SWIFT (https://www.swift.com/about-us/legal/compliance-0/swift-and-sanctions), however other credible reporting may be used. |            0.99 |        99554.19 | 2025-07-12 15:55:09
+             35 | NBA: Will the Heat beat the Wizards by more than 7.5 points in their November 18th matchup? | In the upcoming NBA game, scheduled for November 18th:
+
+If the Miami Heat win by over 7.5 points, the market will resolve to “Yes”.
+
+If the Washington Wizards lose by less than 7.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by November 25, 2021, the market will resolve 50-50. |            0.99 |         7793.96 | 2025-07-13 15:55:09
+              6 | What will the price of Bitcoin be on November 4th, 2020? | This is a scalar market on what the USD price of Bitcoin will be on November 4th, 2020, according to Coingecko. The lower bound for this market is $5,000/BTC, and the upper bound is $15,000/BTC - you can use the calculator to the right (underneath the Buy modal) to calculate how each Long or Short share price corresponds with the BTC price. The market will be settled according to Coingecko’s BTC page at roughly 12pm EST on November 4th, 2020. Long and Short shares will settle proportional to the final value, in the case of the final value being between these bounds, but if the final value exceeds either the upper or lower bound, the price of each Outcome Share is capped at $1. Refer to calculator for share price and BTC price correlation. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.37 |        25361.03 | 2025-07-17 21:28:18
+             10 | What will the USD price of Filecoin ($FIL) be on November 17th, 2020? | This is a scalar market on what the USD price of 1 Filecoin ($FIL) will be on November 17th, 2020, at 2pm EST, according to Coingecko. The lower bound for this market is $10/FIL, and the upper bound is $50/FIL - you can use the calculator to the right (underneath the Buy modal) to calculate how each Long or Short share price corresponds with the FIL price. Long and Short shares will settle proportionally in the case of the final value being between these bounds, but if the final value exceeds either the upper or lower bound, the price of each Outcome Share is capped at $1. Refer to calculator. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.20 |        48914.67 | 2025-07-17 21:28:18
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? | The Norway Chess is a prestigious annual closed chess tournament, scheduled to take place this year from May 31 to June 11 in Stavanger, Norway. Ten world-class players will play against each other in 9 rounds in a round-robin tournament.
+
+If Magnus Carlsen loses any game in the 2022 Norway Chess this market will resolve to “Yes”. If Magnus Carlsen draws and/or wins every game this market will resolve to “No”.
+
+Only the 9 round-robin games will be considered for this market. Tie-Breaks will not be considered for this market.
+
+The primary resolution sources for this market will be https://norwaychess.no/; however, other credible reporting may be used. |            0.01 |        89615.68 | 2025-07-20 15:55:09
+             45 | Will natural gas close above $9 on June 17, 2022? | If the value of natural gas is greater than $9.00 at market close according to this market's resolution source on the resolution date, June 17, 2022, this market will resolve to “Yes”. If the value of natural gas is $9.00 or less as of market close according to this market's resolution source on the resolution date, this market will resolve to “No”.
+
+If for any reason (e.g. market holiday, emergency market closure) there is no close price for this market's resolution date, the close price of the nearest previous date will be used.
+
+The resolution source for this market will be NASDAQ's reporting on the the values offered by the New York Mercantile Exchange (NYMEX), found at (https://www.nasdaq.com/market-activity/commodities/ng:nmx/historical). Resolution will be based on the value listed in column labelled “Close/Last” in the row titled with the resolution date. |            0.01 |        41494.22 | 2025-07-24 15:55:09
+             44 | Will NATO declare a No Fly-Zone over any Ukrainian territory by April 30, 2022? | This market asks whether the North American Treaty Organization (NATO) will declare a no fly-zone over the airspace of any territory designated by the United Nations as Ukrainian by April 30, 2022.
+
+If NATO declares a no fly-zone over the airspace of any territory designated by the United Nations as Ukrainian between the date of this market's inception, March 8, 2022, 12:00:00 PM ET, and April 30, 2022, 11:59:59 PM ET, this market will resolve to "Yes". Otherwise this market will resolve to "No".
+
+If NATO declares the no-fly zone by April 30, 2022, even if it goes into effect afterwards, it will still suffice to resolve this market to "Yes."
+
+The primary resolution source for this market will be official information released by NATO (https://www.nato.int/cps/en/natohq/news_room.htm), however other credible news sources will also be used.  |            0.01 |        24081.22 | 2025-07-30 15:55:09
+
+All Markets Including Expired (Top 10)
+================================================================================
+            mid |            name |     description |            podd |          volume |        end_date
+---------------------------------------------------------------------------------------------------------
+             41 | Will the floor price of 'We Are All Going to Die' be above 1 ETH on June 14? | This is a market on whether NFT collection "We Are All Going to Die" will have a floor price above 1 ETH on June 14, 2022 (at 12:00 PM ET), according to https://opensea.io/collection/we-are-all-going-to-die.
+
+This market will resolve to "Yes" if, on the aforementioned check time, there are no We Are All Going to Die NFTs listed for sale ("Buy now") for 1 ETH or less on the official We Are All Going to Die collection page on OpenSea. Otherwise, this market will resolve to "No".
+
+Only listings that have existed for at least an hour are valid for this market. List time for an NFT can be found under “Trading History” by clicking the “Listing” filter and hovering over the date.
+
+Note: the exact price at the check time will be used. If no floor price is available at the check time, the source will be checked every following hour. For valid listings that are declining price auctions, the price exactly at the check time will be used, NOT the price at the initial listing time. |            0.01 |         3722.44 | 2025-08-17 15:55:09
+             32 | NFL: Will the Falcons beat the Panthers by more than 3.5 points in their October 31st matchup? | In the upcoming NFL game:
+
+If the Atlanta Falcons win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Carolina Panthers lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by November 6, 2021, the market will resolve 50-50. |            0.01 |         5332.42 | 2025-08-15 15:55:09
+             40 | NFL: Will the Cardinals beat the Rams by more than 2.5 points in their December 13 matchup? | In the upcoming NFL game, scheduled for December 13:
+
+If the Arizona Cardinals win by over 2.5 points, the market will resolve to “Yes”.
+
+If the Los Angeles Rams lose by less than 2.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 20, 2021, the market will resolve 50-50. |            0.01 |        36110.01 | 2025-08-12 15:55:09
+             42 | Will the Spurs or the Grizzlies win their NBA play-in tournament matchup? | This is a market on who will win in the NBA play-in tournament match between the San Antonio Spurs and the Memphis Grizzlies, scheduled to take place at 7:30 PM ET May 19, 2021. This market will resolve to “Spurs” if the San Antonio Spurs win, and “Grizzlies” if the Memphis Grizzlies win. If the match is postponed to a date on or before June 1, 2021, the same market conditions will apply. If the match is postponed to a date after June 1, 2021, or cancelled altogether, the market will resolve 50-50. In the event of ambiguity in terms of the market outcome, the market will be resolved in good faith at the sole discretion of the Markets Integrity Committee (MIC). |            0.01 |        66258.86 | 2025-08-10 15:55:09
+             38 | NFL: Will the Chiefs beat the Bengals by more than 3.5 points in their January 2 matchup? | In the upcoming NFL game, scheduled for January 2:
+
+If the Kansas City Chiefs win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Cincinnati Bengals lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by January 9, 2022, the market will resolve 50-50. |            0.01 |        20962.33 | 2025-08-06 15:55:09
+             31 | NBA: Will the Mavericks beat the Grizzlies by more than 5.5 points in their December 4 matchup? | In the upcoming NBA game, scheduled for December 4:
+
+If the Dallas Mavericks win by over 5.5 points, the market will resolve to “Yes”.
+
+If the Memphis Grizzlies lose by less than 5.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 11, 2021, the market will resolve 50-50. |            0.01 |         1335.05 | 2025-08-05 15:55:09
+             44 | Will NATO declare a No Fly-Zone over any Ukrainian territory by April 30, 2022? | This market asks whether the North American Treaty Organization (NATO) will declare a no fly-zone over the airspace of any territory designated by the United Nations as Ukrainian by April 30, 2022.
+
+If NATO declares a no fly-zone over the airspace of any territory designated by the United Nations as Ukrainian between the date of this market's inception, March 8, 2022, 12:00:00 PM ET, and April 30, 2022, 11:59:59 PM ET, this market will resolve to "Yes". Otherwise this market will resolve to "No".
+
+If NATO declares the no-fly zone by April 30, 2022, even if it goes into effect afterwards, it will still suffice to resolve this market to "Yes."
+
+The primary resolution source for this market will be official information released by NATO (https://www.nato.int/cps/en/natohq/news_room.htm), however other credible news sources will also be used.  |            0.01 |        24081.22 | 2025-07-30 15:55:09
+             45 | Will natural gas close above $9 on June 17, 2022? | If the value of natural gas is greater than $9.00 at market close according to this market's resolution source on the resolution date, June 17, 2022, this market will resolve to “Yes”. If the value of natural gas is $9.00 or less as of market close according to this market's resolution source on the resolution date, this market will resolve to “No”.
+
+If for any reason (e.g. market holiday, emergency market closure) there is no close price for this market's resolution date, the close price of the nearest previous date will be used.
+
+The resolution source for this market will be NASDAQ's reporting on the the values offered by the New York Mercantile Exchange (NYMEX), found at (https://www.nasdaq.com/market-activity/commodities/ng:nmx/historical). Resolution will be based on the value listed in column labelled “Close/Last” in the row titled with the resolution date. |            0.01 |        41494.22 | 2025-07-24 15:55:09
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? | The Norway Chess is a prestigious annual closed chess tournament, scheduled to take place this year from May 31 to June 11 in Stavanger, Norway. Ten world-class players will play against each other in 9 rounds in a round-robin tournament.
+
+If Magnus Carlsen loses any game in the 2022 Norway Chess this market will resolve to “Yes”. If Magnus Carlsen draws and/or wins every game this market will resolve to “No”.
+
+Only the 9 round-robin games will be considered for this market. Tie-Breaks will not be considered for this market.
+
+The primary resolution sources for this market will be https://norwaychess.no/; however, other credible reporting may be used. |            0.01 |        89615.68 | 2025-07-20 15:55:09
+             10 | What will the USD price of Filecoin ($FIL) be on November 17th, 2020? | This is a scalar market on what the USD price of 1 Filecoin ($FIL) will be on November 17th, 2020, at 2pm EST, according to Coingecko. The lower bound for this market is $10/FIL, and the upper bound is $50/FIL - you can use the calculator to the right (underneath the Buy modal) to calculate how each Long or Short share price corresponds with the FIL price. Long and Short shares will settle proportionally in the case of the final value being between these bounds, but if the final value exceeds either the upper or lower bound, the price of each Outcome Share is capped at $1. Refer to calculator. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.20 |        48914.67 | 2025-07-17 21:28:18
+
+Market by ID (First Market)
+================================================================================
+            mid |            name |     description |            podd |          volume |        end_date
+---------------------------------------------------------------------------------------------------------
+              1 | Will Joe Biden get Coronavirus before the election? | This is a market on if presidential candidate Joe Biden will test positive for COVID-19 before November 3rd, 2020. This will be defined as Joe publicly announcing - via any medium, including social media - that he has tested positive for COVID-19, or some variation of that statement. If it is in reference to antibodies, or he doesn’t publicly acknowledge it, the market will resolve to No.
+In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC). |            0.35 |         1087.92 | 2025-06-26 21:28:18
+
+Market Bets for Market ID 1 (Top 10)
+================================================================================
+No results found.
+
+Volume Distribution for Market ID 1
+================================================================================
+     yes_volume |       no_volume
+---------------------------------
+           0.00 |            0.00
+
+Markets with Highest Volume (Top 10)
+================================================================================
+            mid |            name |     description |            podd |          volume |        end_date
+---------------------------------------------------------------------------------------------------------
+             33 | (In-Game Trading) Will the 49ers beat the Packers by more than 3.5 points in their week three matchup? | This is a market on whether the San Francisco 49ers will beat the Green Bay Packers by over 3.5 points in their NFL week three matchup scheduled to take place on September 26, 2021, at 8:20 PM ET. This market will resolve to “Yes” if the 49ers win by over 3.5 points, and “No” if the Packers lose by less than 3.5 points or win. If the match is postponed to a date on or before October 26, 2021, the same market conditions will apply. If the match is postponed to a date after October 26, 2021, or canceled altogether, the market will resolve 55-45 in favor of “No”. |            0.01 |       139186.36 | 2025-06-30 15:55:09
+             43 | Will any Belarusian bank be disconnected from SWIFT by April 30, 2022? | If the Society for Worldwide Interbank Financial Telecommunications Network (SWIFT Network) disconnects or otherwise restricts any Belarusian institution(s) in accordance with sanctions by April 30, 2022, 11:59:59 PM ET (inclusive), this market will resolve to “Yes”. Otherwise, this market will resolve to “No”.
+
+If any banks or institutions based in the Republic of Belarus are disconnected from SWIFT in accordance with sanctions and later reconnected, this market will resolve to “Yes”.
+
+If SWIFT announces it will be disconnecting any Belarusian banks or institutions in accordance with any sanctions but those sanctions go into effect after the resolution date for this market, the announcement will have no bearing on the resolution of this market.
+
+The primary resolution source for this market will be official information from SWIFT (https://www.swift.com/about-us/legal/compliance-0/swift-and-sanctions), however other credible reporting may be used. |            0.99 |        99554.19 | 2025-07-12 15:55:09
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? | The Norway Chess is a prestigious annual closed chess tournament, scheduled to take place this year from May 31 to June 11 in Stavanger, Norway. Ten world-class players will play against each other in 9 rounds in a round-robin tournament.
+
+If Magnus Carlsen loses any game in the 2022 Norway Chess this market will resolve to “Yes”. If Magnus Carlsen draws and/or wins every game this market will resolve to “No”.
+
+Only the 9 round-robin games will be considered for this market. Tie-Breaks will not be considered for this market.
+
+The primary resolution sources for this market will be https://norwaychess.no/; however, other credible reporting may be used. |            0.01 |        89615.68 | 2025-07-20 15:55:09
+             42 | Will the Spurs or the Grizzlies win their NBA play-in tournament matchup? | This is a market on who will win in the NBA play-in tournament match between the San Antonio Spurs and the Memphis Grizzlies, scheduled to take place at 7:30 PM ET May 19, 2021. This market will resolve to “Spurs” if the San Antonio Spurs win, and “Grizzlies” if the Memphis Grizzlies win. If the match is postponed to a date on or before June 1, 2021, the same market conditions will apply. If the match is postponed to a date after June 1, 2021, or cancelled altogether, the market will resolve 50-50. In the event of ambiguity in terms of the market outcome, the market will be resolved in good faith at the sole discretion of the Markets Integrity Committee (MIC). |            0.01 |        66258.86 | 2025-08-10 15:55:09
+              4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? | This is a market on whether Kanye West and Kim Kardashian will officially file for a divorce before January 1st 2021. Divorce can be defined empirically as either an official announcement direct from either Kim or Kanye, or an official filing of divorce, including but not limited to certified copies of divorce decrees available from the Superior Court in the county where the decree was granted. This market will resolve "Yes" if the aforementioned conditions are met and "No" otherwise. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.70 |        57964.41 | 2025-07-09 21:28:18
+             10 | What will the USD price of Filecoin ($FIL) be on November 17th, 2020? | This is a scalar market on what the USD price of 1 Filecoin ($FIL) will be on November 17th, 2020, at 2pm EST, according to Coingecko. The lower bound for this market is $10/FIL, and the upper bound is $50/FIL - you can use the calculator to the right (underneath the Buy modal) to calculate how each Long or Short share price corresponds with the FIL price. Long and Short shares will settle proportionally in the case of the final value being between these bounds, but if the final value exceeds either the upper or lower bound, the price of each Outcome Share is capped at $1. Refer to calculator. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.20 |        48914.67 | 2025-07-17 21:28:18
+              5 | Will Coinbase begin publicly trading before Jan 1, 2021? | This market is on whether Coinbase will be a publicly traded company by January 1, 2021. This market will resolve to Yes if Coinbase starts publicly trading on NASDAQ or NYSE before January 1st 2021. Regardless of if they list via IPO or direct listing. If they are not listed and publicly trading on one of those 2 exchanges, the market will resolve to "No". In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.09 |        47917.55 | 2025-07-10 21:28:18
+              7 | Will Trump win the 2020 U.S. presidential election? | This is a market on if Donald Trump will win the 2020 US presidential election. This is not about the popular vote - it's particularly about if Trump will win the election, as defined by the electoral college system, and set to still be president come next term. Market will resolve to “Yes” if Donald Trump receives the required number of electoral votes to win the presidency, whenever it is called. If Joe Biden or any other candidate is declared the winner of this election officially, this market will resolve to “No”. Note: If the election winner is not declared on election night, this market will not resolve until a winner is confirmed.The resolution source will be https://www.cnn.com/election/2020 CNN's 2020 Election page: Additional note: in the event of conflicting sources between CNN and WSJ (https://www.wsj.com/livecoverage/campaign-wire-election-2020) or Associated Press (https://apnews.com/hub/election-2020), the market will only be resolved once there is a definitive winner. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.59 |        42519.32 | 2025-06-26 21:28:18
+              2 | Will Airbnb begin publicly trading before Jan 1, 2021? | This market is on whether or not Airbnb will be a publicly traded company by January 1, 2021. This market will resolve to Yes if Airbnb starts publicly trading on NASDAQ or NYSE before January 1st 2021, regardless of if they list via IPO, direct listing, or some other method. If they are not listed and publicly trading on one of those 2 stock exchanges, the market will resolve to "No". In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.32 |        42311.18 | 2025-06-23 21:28:18
+             45 | Will natural gas close above $9 on June 17, 2022? | If the value of natural gas is greater than $9.00 at market close according to this market's resolution source on the resolution date, June 17, 2022, this market will resolve to “Yes”. If the value of natural gas is $9.00 or less as of market close according to this market's resolution source on the resolution date, this market will resolve to “No”.
+
+If for any reason (e.g. market holiday, emergency market closure) there is no close price for this market's resolution date, the close price of the nearest previous date will be used.
+
+The resolution source for this market will be NASDAQ's reporting on the the values offered by the New York Mercantile Exchange (NYMEX), found at (https://www.nasdaq.com/market-activity/commodities/ng:nmx/historical). Resolution will be based on the value listed in column labelled “Close/Last” in the row titled with the resolution date. |            0.01 |        41494.22 | 2025-07-24 15:55:09
+
+Markets with Most Bets (Top 10)
+================================================================================
+            mid |            name |     description |            podd |          volume |       bet_count
+---------------------------------------------------------------------------------------------------------
+              4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? | This is a market on whether Kanye West and Kim Kardashian will officially file for a divorce before January 1st 2021. Divorce can be defined empirically as either an official announcement direct from either Kim or Kanye, or an official filing of divorce, including but not limited to certified copies of divorce decrees available from the Superior Court in the county where the decree was granted. This market will resolve "Yes" if the aforementioned conditions are met and "No" otherwise. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.70 |        57964.41 |              15
+             43 | Will any Belarusian bank be disconnected from SWIFT by April 30, 2022? | If the Society for Worldwide Interbank Financial Telecommunications Network (SWIFT Network) disconnects or otherwise restricts any Belarusian institution(s) in accordance with sanctions by April 30, 2022, 11:59:59 PM ET (inclusive), this market will resolve to “Yes”. Otherwise, this market will resolve to “No”.
+
+If any banks or institutions based in the Republic of Belarus are disconnected from SWIFT in accordance with sanctions and later reconnected, this market will resolve to “Yes”.
+
+If SWIFT announces it will be disconnecting any Belarusian banks or institutions in accordance with any sanctions but those sanctions go into effect after the resolution date for this market, the announcement will have no bearing on the resolution of this market.
+
+The primary resolution source for this market will be official information from SWIFT (https://www.swift.com/about-us/legal/compliance-0/swift-and-sanctions), however other credible reporting may be used. |            0.99 |        99554.19 |               4
+             38 | NFL: Will the Chiefs beat the Bengals by more than 3.5 points in their January 2 matchup? | In the upcoming NFL game, scheduled for January 2:
+
+If the Kansas City Chiefs win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Cincinnati Bengals lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by January 9, 2022, the market will resolve 50-50. |            0.01 |        20962.33 |               3
+             40 | NFL: Will the Cardinals beat the Rams by more than 2.5 points in their December 13 matchup? | In the upcoming NFL game, scheduled for December 13:
+
+If the Arizona Cardinals win by over 2.5 points, the market will resolve to “Yes”.
+
+If the Los Angeles Rams lose by less than 2.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 20, 2021, the market will resolve 50-50. |            0.01 |        36110.01 |               3
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? | The Norway Chess is a prestigious annual closed chess tournament, scheduled to take place this year from May 31 to June 11 in Stavanger, Norway. Ten world-class players will play against each other in 9 rounds in a round-robin tournament.
+
+If Magnus Carlsen loses any game in the 2022 Norway Chess this market will resolve to “Yes”. If Magnus Carlsen draws and/or wins every game this market will resolve to “No”.
+
+Only the 9 round-robin games will be considered for this market. Tie-Breaks will not be considered for this market.
+
+The primary resolution sources for this market will be https://norwaychess.no/; however, other credible reporting may be used. |            0.01 |        89615.68 |               2
+             32 | NFL: Will the Falcons beat the Panthers by more than 3.5 points in their October 31st matchup? | In the upcoming NFL game:
+
+If the Atlanta Falcons win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Carolina Panthers lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by November 6, 2021, the market will resolve 50-50. |            0.01 |         5332.42 |               2
+             31 | NBA: Will the Mavericks beat the Grizzlies by more than 5.5 points in their December 4 matchup? | In the upcoming NBA game, scheduled for December 4:
+
+If the Dallas Mavericks win by over 5.5 points, the market will resolve to “Yes”.
+
+If the Memphis Grizzlies lose by less than 5.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 11, 2021, the market will resolve 50-50. |            0.01 |         1335.05 |               2
+             37 | NBA: Will the Clippers beat the Celtics by more than 2.5 points in their December 8 matchup? | In the upcoming NBA game, scheduled for December 8:
+
+If the Los Angeles Clippers win by over 2.5 points, the market will resolve to “Yes”.
+
+If the Boston Celtics lose by less than 2.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 15, 2021, the market will resolve 50-50. |            0.99 |         3552.12 |               2
+              3 | Will a new Supreme Court Justice be confirmed before Nov 3rd, 2020? | This is a market on whether or not a new Supreme Court Justice will be both nominated and confirmed before Nov 3rd, 2020. Nominated and Confirmed, in the context of the Supreme Court, are defined here: https://en.wikipedia.org/wiki/Appointment_and_confirmation_to_the_Supreme_Court_of_the_United_States. If a Supreme Court Justice is Nominated but not Confirmed before the election, the market will resolve to “No”. RIP RBG. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC). |            0.42 |        19352.10 |               2
+              5 | Will Coinbase begin publicly trading before Jan 1, 2021? | This market is on whether Coinbase will be a publicly traded company by January 1, 2021. This market will resolve to Yes if Coinbase starts publicly trading on NASDAQ or NYSE before January 1st 2021. Regardless of if they list via IPO or direct listing. If they are not listed and publicly trading on one of those 2 exchanges, the market will resolve to "No". In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.09 |        47917.55 |               2
+
+Recent Betting Activity (Top 10)
+================================================================================
+            bId |             uId |             mId |     market_name |            podd |             amt |             yes |       createdAt |           uname
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+            147 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.71 |          100.00 |               0 | 2025-07-08 00:39:55 |           modes
+            146 |              36 |               5 | Will Coinbase begin publicly trading before Jan 1, 2021? |            0.99 |         1000.00 |               0 | 2025-07-07 20:29:05 |           modes
+            145 |              36 |               5 | Will Coinbase begin publicly trading before Jan 1, 2021? |            0.53 |          100.00 |               1 | 2025-07-07 20:28:52 |           modes
+            144 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.78 |         1500.00 |               0 | 2025-07-06 23:54:30 |           modes
+            143 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.26 |        10000.00 |               1 | 2025-07-06 19:58:56 |           modes
+            142 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.24 |          100.00 |               1 | 2025-07-06 19:58:48 |           modes
+            141 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.23 |          100.00 |               1 | 2025-07-06 19:57:11 |           modes
+            140 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.21 |          100.00 |               1 | 2025-07-06 19:55:51 |           modes
+            139 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.19 |           50.00 |               1 | 2025-07-06 19:50:25 |           modes
+            138 |              36 |               4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.18 |           50.00 |               1 | 2025-07-06 19:50:21 |           modes
+
+Market Statistics Summary (Top 10 by Volume)
+================================================================================
+            mid |            name |            podd |          volume |        end_date |      total_bets |      yes_volume |       no_volume |  unique_bettors
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+             33 | (In-Game Trading) Will the 49ers beat the Packers by more than 3.5 points in their week three matchup? |            0.01 |       139186.36 | 2025-06-30 15:55:09 |               1 |            0.00 |          406.76 |               1
+             43 | Will any Belarusian bank be disconnected from SWIFT by April 30, 2022? |            0.99 |        99554.19 | 2025-07-12 15:55:09 |               4 |          251.06 |         1776.77 |               2
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? |            0.01 |        89615.68 | 2025-07-20 15:55:09 |               2 |          629.49 |          233.26 |               2
+             42 | Will the Spurs or the Grizzlies win their NBA play-in tournament matchup? |            0.01 |        66258.86 | 2025-08-10 15:55:09 |               2 |          679.91 |          596.50 |               2
+              4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? |            0.70 |        57964.41 | 2025-07-09 21:28:18 |              15 |        11100.00 |         4700.00 |               2
+             10 | What will the USD price of Filecoin ($FIL) be on November 17th, 2020? |            0.20 |        48914.67 | 2025-07-17 21:28:18 |               0 |            0.00 |            0.00 |               0
+              5 | Will Coinbase begin publicly trading before Jan 1, 2021? |            0.09 |        47917.55 | 2025-07-10 21:28:18 |               2 |          100.00 |         1000.00 |               1
+              7 | Will Trump win the 2020 U.S. presidential election? |            0.59 |        42519.32 | 2025-06-26 21:28:18 |               0 |            0.00 |            0.00 |               0
+              2 | Will Airbnb begin publicly trading before Jan 1, 2021? |            0.32 |        42311.18 | 2025-06-23 21:28:18 |               0 |            0.00 |            0.00 |               0
+             45 | Will natural gas close above $9 on June 17, 2022? |            0.01 |        41494.22 | 2025-07-24 15:55:09 |               0 |            0.00 |            0.00 |               0
+
+Active Markets with Recent Activity (Top 10)
+================================================================================
+            mid |            name |     description |            podd |          volume |        end_date |   last_bet_time
+---------------------------------------------------------------------------------------------------------------------------
+              4 | Will Kim Kardashian and Kanye West divorce before Jan 1, 2021? | This is a market on whether Kanye West and Kim Kardashian will officially file for a divorce before January 1st 2021. Divorce can be defined empirically as either an official announcement direct from either Kim or Kanye, or an official filing of divorce, including but not limited to certified copies of divorce decrees available from the Superior Court in the county where the decree was granted. This market will resolve "Yes" if the aforementioned conditions are met and "No" otherwise. In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.70 |        57964.41 | 2025-07-09 21:28:18 | 2025-07-08 00:39:55
+              5 | Will Coinbase begin publicly trading before Jan 1, 2021? | This market is on whether Coinbase will be a publicly traded company by January 1, 2021. This market will resolve to Yes if Coinbase starts publicly trading on NASDAQ or NYSE before January 1st 2021. Regardless of if they list via IPO or direct listing. If they are not listed and publicly trading on one of those 2 exchanges, the market will resolve to "No". In the event of ambiguity in terms of the market outcome, the market will be resolved at the sole discretion of the Markets Integrity Committee (MIC).
+ |            0.09 |        47917.55 | 2025-07-10 21:28:18 | 2025-07-07 20:29:05
+             31 | NBA: Will the Mavericks beat the Grizzlies by more than 5.5 points in their December 4 matchup? | In the upcoming NBA game, scheduled for December 4:
+
+If the Dallas Mavericks win by over 5.5 points, the market will resolve to “Yes”.
+
+If the Memphis Grizzlies lose by less than 5.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 11, 2021, the market will resolve 50-50. |            0.01 |         1335.05 | 2025-08-05 15:55:09 | 2025-06-19 15:55:08
+             32 | NFL: Will the Falcons beat the Panthers by more than 3.5 points in their October 31st matchup? | In the upcoming NFL game:
+
+If the Atlanta Falcons win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Carolina Panthers lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by November 6, 2021, the market will resolve 50-50. |            0.01 |         5332.42 | 2025-08-15 15:55:09 | 2025-06-19 15:55:08
+             34 | 2022 Norway Chess: Will Magnus Carlsen lose any game? | The Norway Chess is a prestigious annual closed chess tournament, scheduled to take place this year from May 31 to June 11 in Stavanger, Norway. Ten world-class players will play against each other in 9 rounds in a round-robin tournament.
+
+If Magnus Carlsen loses any game in the 2022 Norway Chess this market will resolve to “Yes”. If Magnus Carlsen draws and/or wins every game this market will resolve to “No”.
+
+Only the 9 round-robin games will be considered for this market. Tie-Breaks will not be considered for this market.
+
+The primary resolution sources for this market will be https://norwaychess.no/; however, other credible reporting may be used. |            0.01 |        89615.68 | 2025-07-20 15:55:09 | 2025-06-19 15:55:08
+             35 | NBA: Will the Heat beat the Wizards by more than 7.5 points in their November 18th matchup? | In the upcoming NBA game, scheduled for November 18th:
+
+If the Miami Heat win by over 7.5 points, the market will resolve to “Yes”.
+
+If the Washington Wizards lose by less than 7.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by November 25, 2021, the market will resolve 50-50. |            0.99 |         7793.96 | 2025-07-13 15:55:09 | 2025-06-19 15:55:08
+             38 | NFL: Will the Chiefs beat the Bengals by more than 3.5 points in their January 2 matchup? | In the upcoming NFL game, scheduled for January 2:
+
+If the Kansas City Chiefs win by over 3.5 points, the market will resolve to “Yes”.
+
+If the Cincinnati Bengals lose by less than 3.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by January 9, 2022, the market will resolve 50-50. |            0.01 |        20962.33 | 2025-08-06 15:55:09 | 2025-06-19 15:55:08
+             39 | Will 'Lightyear' gross more than $90 million domestically on its opening weekend? | 'Lightyear' is an upcoming American computer-animated film produced by Pixar Animation Studios. It is a spin-off of the Toy Story film series, serving as an origin story for the fictional test astronaut character who the Buzz Lightyear toy figure featured in the main films was inspired by. It is scheduled for theatrical release in the USA on June 17, 2022.
+
+This is a market on how much 'Lightyear' will gross domestically on its opening weekend. The “Domestic Weekend” tab on https://www.boxofficemojo.com/release/rl6456065/ will be used to resolve this market once the values for the opening weekend (June 17-19) are final (i.e. not studio estimates).
+
+This market will resolve to "Yes" if 'Lightyear' grosses more than $90,000,000 on the opening weekend. Otherwise, this market will resolve to "No".
+
+Opening weekend is defined as the first Friday, Saturday, and Sunday of the film's release. Please note, this market will resolve according to the Box Office Mojo number under Domestic Weekend for the 3-day weekend, regardless of whether domestic refers to only the USA or to the USA and Canada, etc.
+
+If there is no final data available by June 26, 2022, 11:59:59 PM ET, another credible resolution source will be chosen. |            0.01 |         8676.66 | 2025-07-12 15:55:09 | 2025-06-19 15:55:08
+             40 | NFL: Will the Cardinals beat the Rams by more than 2.5 points in their December 13 matchup? | In the upcoming NFL game, scheduled for December 13:
+
+If the Arizona Cardinals win by over 2.5 points, the market will resolve to “Yes”.
+
+If the Los Angeles Rams lose by less than 2.5 points or win, the market will resolve “No.” 
+
+If the game is not completed by December 20, 2021, the market will resolve 50-50. |            0.01 |        36110.01 | 2025-08-12 15:55:09 | 2025-06-19 15:55:08
+             42 | Will the Spurs or the Grizzlies win their NBA play-in tournament matchup? | This is a market on who will win in the NBA play-in tournament match between the San Antonio Spurs and the Memphis Grizzlies, scheduled to take place at 7:30 PM ET May 19, 2021. This market will resolve to “Spurs” if the San Antonio Spurs win, and “Grizzlies” if the Memphis Grizzlies win. If the match is postponed to a date on or before June 1, 2021, the same market conditions will apply. If the match is postponed to a date after June 1, 2021, or cancelled altogether, the market will resolve 50-50. In the event of ambiguity in terms of the market outcome, the market will be resolved in good faith at the sole discretion of the Markets Integrity Committee (MIC). |            0.01 |        66258.86 | 2025-08-10 15:55:09 | 2025-06-19 15:55:08
