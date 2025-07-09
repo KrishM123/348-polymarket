@@ -21,7 +21,6 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 import time
 from sql_loader import SQLLoader
-from sql_loader import SQLLoader
 
 # Load environment variables
 load_dotenv()
@@ -164,11 +163,11 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
     for i in tqdm(range(0, len(user_ids), BATCH_SIZE)):
         batch_users = user_ids[i:i + BATCH_SIZE]
         
-        # Fetch balances for batch
-        cursor.execute(
-            sql_loader.get_query('bets.get_user_balance'),
-            batch_users
+        # Fetch balances for batch - need to use dynamic IN clause for multiple users
+        get_batch_balances_sql = "SELECT uid, balance FROM users WHERE uid IN ({})".format(
+            ','.join(['%s'] * len(batch_users))
         )
+        cursor.execute(get_batch_balances_sql, batch_users)
         user_balances = dict(cursor.fetchall())
         
         bets_data = []
@@ -233,8 +232,7 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         # Batch insert bets using SQL loader
         if bets_data:
             try:
-                insert_bet_query = sql_loader.get_query('bets.insert_bet')
-                cursor.executemany(insert_bet_query, bets_data)
+                cursor.executemany(insert_bet_sql, bets_data)
                 connection.commit()
             except Error as e:
                 print(f"Error inserting bets: {e}")
@@ -244,8 +242,7 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         # Batch update balances using SQL loader
         if balance_updates:
             try:
-                update_balance_query = sql_loader.get_query('bets.update_user_balance')
-                cursor.executemany(update_balance_query, balance_updates)
+                cursor.executemany(update_balance_sql, balance_updates)
                 connection.commit()
             except Error as e:
                 print(f"Error updating balances: {e}")
@@ -448,4 +445,4 @@ def main():
         connection.close()
 
 if __name__ == "__main__":
-    main() 
+    main()
