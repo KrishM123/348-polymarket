@@ -21,6 +21,7 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 import time
 from sql_loader import SQLLoader
+from sql_loader import SQLLoader
 
 # Load environment variables
 load_dotenv()
@@ -140,9 +141,14 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         {'type': 'small_stake', 'amt_range': (10, 100), 'frequency': 0.6}
     ]
     
+    # Get SQL queries
+    insert_bet_sql = sql_loader.get_query('bets.insert_bet')
+    update_balance_sql = sql_loader.get_query('bets.update_user_balance')
+    get_market_odds_sql = "SELECT mid, podd FROM markets"  # Simple query, keep as is
+    
     # Pre-calculate market odds for efficiency
     print("Fetching market odds...")
-    cursor.execute("SELECT mid, podd FROM markets")
+    cursor.execute(get_market_odds_sql)
     market_odds_map = dict(cursor.fetchall())
     
     # Validate that we have user IDs and market IDs
@@ -160,9 +166,7 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         
         # Fetch balances for batch
         cursor.execute(
-            "SELECT uid, balance FROM users WHERE uid IN ({})".format(
-                ','.join(['%s'] * len(batch_users))
-            ),
+            sql_loader.get_query('bets.get_user_balance'),
             batch_users
         )
         user_balances = dict(cursor.fetchall())
