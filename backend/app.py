@@ -9,11 +9,30 @@ import jwt
 from functools import wraps
 from dotenv import load_dotenv
 from sql_loader import SQLLoader
+from query_timer import QueryTimer
 
 load_dotenv()
 
 # Initialize SQL loader
 sql = SQLLoader()
+
+# Initialize query timer
+query_timer = QueryTimer()
+
+def execute_timed_query(cursor, query_key: str, params=None):
+    """
+    Execute a SQL query with timing using the query timer.
+    
+    Args:
+        cursor: Database cursor object
+        query_key: The query identifier (e.g., 'auth.get_user_by_username')
+        params: Query parameters (optional)
+        
+    Returns:
+        Result of cursor.execute()
+    """
+    sql_query = sql.get_query(query_key)
+    return query_timer.time_query(cursor, query_key, sql_query, params)
 
 app = Flask(__name__)
 
@@ -58,7 +77,7 @@ def calculate_market_odds(market_id, cursor):
     """
     try:
         # Get total volume on YES and NO sides
-        cursor.execute(sql.get_query('markets.get_market_volume_distribution'), (market_id,))
+        execute_timed_query(cursor, 'markets.get_market_volume_distribution', (market_id,))
         
         result = cursor.fetchone()
         yes_volume = float(result[0]) if result[0] else 0.0
@@ -139,14 +158,14 @@ def register():
         cursor = connection.cursor(dictionary=True)
         
         # Check if username already exists
-        cursor.execute(sql.get_query('auth.check_username_exists'), (username,))
+        execute_timed_query(cursor, 'auth.check_username_exists', (username,))
         if cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Username already exists'}), 400
             
         # Check if email already exists
-        cursor.execute(sql.get_query('auth.check_email_exists'), (email,))
+        execute_timed_query(cursor, 'auth.check_email_exists', (email,))
         if cursor.fetchone():
             cursor.close()
             connection.close()
@@ -156,7 +175,7 @@ def register():
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         
         # Insert the new user
-        cursor.execute(sql.get_query('auth.insert_user'), (username, email, hashed_password.decode('utf-8'), phone_number))
+        execute_timed_query(cursor, 'auth.insert_user', (username, email, hashed_password.decode('utf-8'), phone_number))
         
         user_id = cursor.lastrowid
         connection.commit()
@@ -187,7 +206,7 @@ def login():
             return jsonify({'error': 'Database connection failed'}), 500
             
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(sql.get_query('auth.get_user_by_username'), (username,))
+        execute_timed_query(cursor, 'auth.get_user_by_username', (username,))
         user = cursor.fetchone()
         cursor.close()
         connection.close()
@@ -230,7 +249,7 @@ def get_markets():
     
     try:
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(sql.get_query('markets.get_all_markets'))
+        execute_timed_query(cursor, 'markets.get_all_markets')
         
         markets = cursor.fetchall()
         
@@ -265,7 +284,7 @@ def get_market(market_id):
         cursor = connection.cursor(dictionary=True)
         
         # Get market information
-        cursor.execute(sql.get_query('markets.get_market_by_id'), (market_id,))
+        execute_timed_query(cursor, 'markets.get_market_by_id', (market_id,))
         
         market = cursor.fetchone()
         if not market:
@@ -302,14 +321,14 @@ def get_market_bets(market_id):
         cursor = connection.cursor(dictionary=True)
         
         # First check if market exists
-        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_exists', (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Get all bets for the market with user information
-        cursor.execute(sql.get_query('markets.get_market_bets'), (market_id,))
+        execute_timed_query(cursor, 'markets.get_market_bets', (market_id,))
         
         bets = cursor.fetchall()
         
@@ -364,7 +383,7 @@ def create_bet(market_id):
         cursor = connection.cursor()
         
         # Check if market exists and is still active, and get current odds
-        cursor.execute(sql.get_query('validation.check_market_active'), (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
         market_result = cursor.fetchone()
         if not market_result:
             cursor.close()
@@ -374,7 +393,7 @@ def create_bet(market_id):
         current_odds = float(market_result[1])
         
         # Check if user exists and has sufficient balance
-        cursor.execute(sql.get_query('bets.get_user_balance'), (user_id,))
+        execute_timed_query(cursor, 'bets.get_user_balance', (user_id,))
         user = cursor.fetchone()
         if not user:
             cursor.close()
@@ -388,19 +407,19 @@ def create_bet(market_id):
         
         try:
             # Insert the bet using current market odds
-            cursor.execute(sql.get_query('bets.insert_bet'), (user_id, market_id, current_odds, amount, prediction))
+            execute_timed_query(cursor, 'bets.insert_bet', (user_id, market_id, current_odds, amount, prediction))
             
             bet_id = cursor.lastrowid
             
             # Update user balance
-            cursor.execute(sql.get_query('bets.update_user_balance'), (amount, user_id))
+            execute_timed_query(cursor, 'bets.update_user_balance', (amount, user_id))
             
             # Update market volume
-            cursor.execute(sql.get_query('markets.update_market_volume'), (amount, market_id))
+            execute_timed_query(cursor, 'markets.update_market_volume', (amount, market_id))
             
             # Recalculate and update market odds based on new volume distribution
             new_odds = calculate_market_odds(market_id, cursor)
-            cursor.execute(sql.get_query('markets.update_market_odds'), (new_odds, market_id))
+            execute_timed_query(cursor, 'markets.update_market_odds', (new_odds, market_id))
             
             cursor.close()
             connection.close()
@@ -439,7 +458,7 @@ def get_market_comments(market_id):
     try:
         # Get threaded comments
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(sql.get_query('comments.get_threaded_comments'), (market_id, market_id))
+        execute_timed_query(cursor, 'comments.get_threaded_comments', (market_id, market_id))
         comments = cursor.fetchall()
 
         # Convert datetime objects to strings for JSON serialization
@@ -482,21 +501,21 @@ def create_comment(market_id):
         cursor = connection.cursor()
         
         # Check if market exists
-        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_exists', (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Check if user exists
-        cursor.execute(sql.get_query('validation.check_user_exists'), (user_id,))
+        execute_timed_query(cursor, 'validation.check_user_exists', (user_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
         # Insert the comment
-        cursor.execute(sql.get_query('comments.insert_comment'), (user_id, market_id, content))
+        execute_timed_query(cursor, 'comments.insert_comment', (user_id, market_id, content))
         
         comment_id = cursor.lastrowid
         
@@ -538,21 +557,21 @@ def create_reply(market_id, parent_id):
         cursor = connection.cursor()
         
         # Check if market exists
-        cursor.execute(sql.get_query('validation.check_market_exists'), (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_exists', (market_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
         # Check if parent comment exists and belongs to this market
-        cursor.execute(sql.get_query('validation.check_comment_exists_in_market'), (parent_id, market_id))
+        execute_timed_query(cursor, 'validation.check_comment_exists_in_market', (parent_id, market_id))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
             return jsonify({'error': 'Parent comment not found'}), 404
         
         # Check if user exists
-        cursor.execute(sql.get_query('validation.check_user_exists'), (user_id,))
+        execute_timed_query(cursor, 'validation.check_user_exists', (user_id,))
         if not cursor.fetchone():
             cursor.close()
             connection.close()
@@ -561,11 +580,11 @@ def create_reply(market_id, parent_id):
         connection.start_transaction()
         
         try:
-            cursor.execute(sql.get_query('comments.insert_reply'), (user_id, market_id, content))
+            execute_timed_query(cursor, 'comments.insert_reply', (user_id, market_id, content))
             
             reply_id = cursor.lastrowid
             
-            cursor.execute(sql.get_query('comments.create_parent_child_relationship'), (parent_id, reply_id))
+            execute_timed_query(cursor, 'comments.create_parent_child_relationship', (parent_id, reply_id))
             
             connection.commit()
             
@@ -588,6 +607,19 @@ def create_reply(market_id, parent_id):
     except Error as e:
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create reply'}), 500
+
+@app.route('/api/query-stats', methods=['GET'])
+def get_query_stats():
+    """Get SQL query performance statistics"""
+    try:
+        stats = query_timer.get_all_stats()
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+    except Exception as e:
+        print(f"Error getting query stats: {e}")
+        return jsonify({'error': 'Failed to get query statistics'}), 500
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
