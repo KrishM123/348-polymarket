@@ -64,7 +64,26 @@ The seeding script will:
 - Create markets based on real Polymarket data (with fallback to sample data)
 - Generate sample bets and comments for testing
 
-### 4. Run the Application
+### 4. Production Data Generation
+
+For production-like data volume and patterns, use the production data generation script:
+
+```bash
+source venv/bin/activate
+
+python3 populate_production_data.py
+```
+
+The production data generation script will:
+- Generate 10,000 realistic user profiles with varied characteristics:
+  - Whales (high balance, large bets), Active traders (medium balance, frequent bets), Regular users (moderate activity), Novice users (small balance, occasional bets)
+- Create realistic betting patterns and market interactions
+- Generate threaded comments and discussions
+- Preserve existing market data from Polymarket API
+
+Note: The script takes approximately 30 minutes to run due to the volume of data being generated.
+
+### 5. Run the Application
 
 ```bash
 # Make sure virtual environment is activated
