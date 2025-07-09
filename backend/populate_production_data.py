@@ -20,6 +20,7 @@ import numpy as np
 from typing import List, Dict, Any
 from tqdm import tqdm
 import time
+from sql_loader import SQLLoader
 
 # Load environment variables
 load_dotenv()
@@ -32,10 +33,6 @@ DB_CONFIG = {
     'database': os.getenv('DB_DATABASE', 'polymarket')
 }
 
-# Polymarket API endpoints (reused from seed_database.py)
-GAMMA_API_BASE = "https://gamma-api.polymarket.com"
-DATA_API_BASE = "https://data-api.polymarket.com"
-
 # Initialize Faker for generating realistic data
 fake = faker.Faker()
 
@@ -43,12 +40,15 @@ fake = faker.Faker()
 BATCH_SIZE = 100  # Process users in batches of 100
 COMMIT_FREQUENCY = 1000  # Commit every 1000 operations
 
+# Initialize SQL loader
+sql_loader = SQLLoader()
+
 def get_db_connection():
     """Create and return a database connection"""
     try:
         connection = mysql.connector.connect(**DB_CONFIG)
-        # Enable autocommit for better batch performance
-        connection.autocommit = True
+        # Remove autocommit to handle transactions properly
+        connection.autocommit = False
         return connection
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
@@ -59,7 +59,7 @@ def fetch_polymarket_markets():
     from seed_database import fetch_polymarket_markets
     return fetch_polymarket_markets()
 
-def create_production_users(connection, num_users: int = 10000) -> List[int]:
+def create_production_users(connection, num_users: int = 100) -> List[int]:
     """Create a larger set of realistic users for production"""
     cursor = connection.cursor()
     user_ids = []
@@ -75,10 +75,11 @@ def create_production_users(connection, num_users: int = 10000) -> List[int]:
     # Pre-generate all user data
     print("Generating user data...")
     users_data = []
-    for _ in tqdm(range(num_users)):
+    for i in tqdm(range(num_users)):
         username = fake.user_name()
         email = fake.email()
-        phone = fake.phone_number()
+        # Generate shorter phone number to fit VARCHAR(20)
+        phone = f"+1{random.randint(1000000000, 9999999999)}"
         
         user_type = random.choices(
             user_types,
@@ -90,28 +91,42 @@ def create_production_users(connection, num_users: int = 10000) -> List[int]:
         password = fake.password(length=12)
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        users_data.append((username, password_hash, email, phone, balance))
+        users_data.append((username, email, password_hash, phone, balance))
     
     # Insert users in batches
     print("Inserting users in batches...")
     for i in tqdm(range(0, len(users_data), BATCH_SIZE)):
         batch = users_data[i:i + BATCH_SIZE]
         try:
-            cursor.executemany("""
-                INSERT INTO users (uname, passwordHash, email, phoneNumber, balance)
-                VALUES (%s, %s, %s, %s, %s)
-            """, batch)
+            # Insert users without balance first
+            insert_user_query = sql_loader.get_query('auth.insert_user')
+            cursor.executemany(insert_user_query, [(user[0], user[1], user[2], user[3]) for user in batch])
             
-            # Get the range of inserted IDs
-            cursor.execute("SELECT LAST_INSERT_ID()")
-            start_id = cursor.fetchone()[0] - len(batch) + 1
-            user_ids.extend(range(start_id, start_id + len(batch)))
+            # Get the actual inserted IDs from the database
+            cursor.execute("SELECT uid FROM users ORDER BY uid DESC LIMIT %s", (len(batch),))
+            batch_ids = [row[0] for row in cursor.fetchall()]
+            batch_ids.reverse()  # Reverse to get correct order
+            
+            # Update balances separately
+            balance_updates = [(user[4], user_id) for user, user_id in zip(batch, batch_ids)]
+            cursor.executemany(
+                "UPDATE users SET balance = %s WHERE uid = %s",
+                balance_updates
+            )
+            
+            user_ids.extend(batch_ids)
+            connection.commit()
             
         except Error as e:
             print(f"Error inserting batch: {e}")
+            connection.rollback()
             continue
     
     cursor.close()
+    
+    if not user_ids:
+        raise Exception("No users were created successfully. Cannot proceed.")
+    
     return user_ids
 
 def create_production_bets(connection, user_ids: List[int], market_ids: List[int]):
@@ -129,6 +144,14 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
     print("Fetching market odds...")
     cursor.execute("SELECT mid, podd FROM markets")
     market_odds_map = dict(cursor.fetchall())
+    
+    # Validate that we have user IDs and market IDs
+    if not user_ids or not market_ids:
+        print("No user IDs or market IDs available for betting")
+        cursor.close()
+        return
+    
+    print(f"Creating bets for {len(user_ids)} users across {len(market_ids)} markets...")
     
     # Process users in batches
     print("Creating bets...")
@@ -148,6 +171,9 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         balance_updates = []
         
         for user_id in batch_users:
+            if user_id not in user_balances:
+                continue
+                
             balance = float(user_balances[user_id])
             
             # Number of bets varies by user's balance
@@ -160,6 +186,9 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
             
             user_total_bets = 0
             for _ in range(num_bets):
+                if not market_ids:
+                    continue
+                    
                 market_id = random.choice(market_ids)
                 pattern = random.choices(
                     patterns,
@@ -170,36 +199,54 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 # Calculate bet amount
                 max_bet = min(pattern['amt_range'][1], balance * 0.2)
                 min_bet = min(pattern['amt_range'][0], max_bet)
+                
+                if min_bet <= 0:
+                    continue
+                    
                 amount = round(random.uniform(min_bet, max_bet), 2)
                 
-                if amount > (balance - user_total_bets):
+                if amount > (balance - user_total_bets) or amount <= 0:
                     continue
                 
                 # Get market odds with variation
+                if market_id not in market_odds_map:
+                    continue
+                    
                 market_odds = float(market_odds_map[market_id])
                 odds_variation = random.uniform(-0.05, 0.05)
                 odds = max(0.01, min(0.99, market_odds + odds_variation))
+                # Ensure odds precision matches schema (3,2) 
+                odds = round(odds, 2)
                 
                 is_yes = random.random() < odds
                 
                 bets_data.append((user_id, market_id, odds, amount, is_yes))
                 user_total_bets += amount
             
-            balance_updates.append((user_total_bets, user_id))
+            if user_total_bets > 0:
+                balance_updates.append((user_total_bets, user_id))
         
-        # Batch insert bets
+        # Batch insert bets using SQL loader
         if bets_data:
-            cursor.executemany("""
-                INSERT INTO bets (uId, mId, podd, amt, yes)
-                VALUES (%s, %s, %s, %s, %s)
-            """, bets_data)
+            try:
+                insert_bet_query = sql_loader.get_query('bets.insert_bet')
+                cursor.executemany(insert_bet_query, bets_data)
+                connection.commit()
+            except Error as e:
+                print(f"Error inserting bets: {e}")
+                connection.rollback()
+                continue
         
-        # Batch update balances
+        # Batch update balances using SQL loader
         if balance_updates:
-            cursor.executemany("""
-                UPDATE users SET balance = balance - %s
-                WHERE uid = %s
-            """, balance_updates)
+            try:
+                update_balance_query = sql_loader.get_query('bets.update_user_balance')
+                cursor.executemany(update_balance_query, balance_updates)
+                connection.commit()
+            except Error as e:
+                print(f"Error updating balances: {e}")
+                connection.rollback()
+                continue
     
     cursor.close()
 
@@ -207,7 +254,13 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
     """Create realistic comment threads with varied engagement"""
     cursor = connection.cursor()
     
-    # Comment templates and components (existing code...)
+    # Validate inputs
+    if not user_ids or not market_ids:
+        print("No user IDs or market IDs available for comments")
+        cursor.close()
+        return
+    
+    # Comment templates and components
     comment_templates = [
         "I {sentiment} this prediction because {reason}",
         "The odds seem {odds_opinion}. {explanation}",
@@ -216,7 +269,6 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
         "{timeframe} update: {observation}"
     ]
     
-    # (Keep existing template components...)
     sentiments = ['agree with', 'disagree with', 'am uncertain about']
     reasons = [
         'the historical data suggests a different outcome',
@@ -274,21 +326,16 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                     observation=random.choice(observations)
                 )
                 
-                cursor.execute("""
-                    INSERT INTO comments (uId, mId, content)
-                    VALUES (%s, %s, %s)
-                """, (user_id, market_id, content))
+                # Use SQL loader for comment insertion
+                insert_comment_query = sql_loader.get_query('comments.insert_comment')
+                cursor.execute(insert_comment_query, (user_id, market_id, content))
                 
                 root_comment_id = cursor.lastrowid
                 
                 # Reduce number of replies for scale
                 num_replies = random.randint(0, 3)
-                parent_id = root_comment_id
                 
-                # Batch insert replies
-                replies_data = []
-                parent_child_data = []
-                
+                # Create replies one by one to get correct IDs
                 for _ in range(num_replies):
                     replier_id = random.choice(user_ids)
                     reply_template = random.choice(comment_templates)
@@ -305,32 +352,19 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                         observation=random.choice(observations)
                     )
                     
-                    replies_data.append((replier_id, market_id, reply_content))
-                
-                if replies_data:
-                    cursor.executemany("""
-                        INSERT INTO comments (uId, mId, content)
-                        VALUES (%s, %s, %s)
-                    """, replies_data)
+                    # Insert reply comment
+                    cursor.execute(insert_comment_query, (replier_id, market_id, reply_content))
+                    reply_comment_id = cursor.lastrowid
                     
-                    # Get the range of inserted reply IDs
-                    start_id = cursor.lastrowid - len(replies_data) + 1
-                    for i, _ in enumerate(replies_data):
-                        child_id = start_id + i
-                        parent_child_data.append((parent_id, child_id))
-                        
-                        # Some replies might get nested replies
-                        if random.random() < 0.3:  # 30% chance
-                            parent_id = child_id
+                    # Create parent-child relationship
+                    create_parent_child_query = sql_loader.get_query('comments.create_parent_child_relationship')
+                    cursor.execute(create_parent_child_query, (root_comment_id, reply_comment_id))
                 
-                if parent_child_data:
-                    cursor.executemany("""
-                        INSERT INTO isParentOf (pCId, cCId)
-                        VALUES (%s, %s)
-                    """, parent_child_data)
+                connection.commit()
                 
             except Error as e:
                 print(f"Error creating comment thread: {e}")
+                connection.rollback()
                 continue
     
     cursor.close()
@@ -354,11 +388,14 @@ def main():
         from seed_database import create_markets_from_api
         market_ids = create_markets_from_api(connection, markets_data)
         
-        print(f"\nCreating production dataset with 10,000 users...")
+        if not market_ids:
+            raise Exception("No markets were created. Cannot proceed.")
+        
+        print(f"\nCreating production dataset with 100 users...")
         
         # Create users
         print("\nCreating users...")
-        user_ids = create_production_users(connection)
+        user_ids = create_production_users(connection, 100)
         print(f"Created {len(user_ids)} users")
         
         # Create bets
@@ -369,12 +406,40 @@ def main():
         print("\nCreating comments and replies...")
         create_production_comments(connection, user_ids, market_ids)
         
+        # Final commit to ensure all changes are saved
+        connection.commit()
+        
         end_time = time.time()
         duration = end_time - start_time
         print(f"\nProduction dataset creation completed in {duration:.2f} seconds!")
         
+        # Show final statistics
+        cursor = connection.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM markets")
+        market_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM bets")
+        bet_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM comments")
+        comment_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM isParentOf")
+        thread_count = cursor.fetchone()[0]
+        
+        print(f"\nFinal Statistics:")
+        print(f"- Users: {user_count}")
+        print(f"- Markets: {market_count}")
+        print(f"- Bets: {bet_count}")
+        print(f"- Comments: {comment_count}")
+        print(f"- Comment Threads: {thread_count}")
+        
+        cursor.close()
+        
     except Exception as e:
         print(f"Error in main execution: {e}")
+        connection.rollback()
+        import traceback
+        traceback.print_exc()
     finally:
         connection.close()
 
