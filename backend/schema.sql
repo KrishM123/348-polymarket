@@ -64,14 +64,10 @@ CREATE TABLE isParentOf (
 );
 
 -- Indexes for performance optimization
-CREATE INDEX idx_users_uname ON users(uname);
-CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_uname ON users(uname); 
 CREATE INDEX idx_markets_end_date ON markets(end_date);
-CREATE INDEX idx_bets_uId ON bets(uId);
 CREATE INDEX idx_bets_mId ON bets(mId);
 
 -- Composite indexes for common query patterns
-CREATE INDEX idx_bets_user_market ON bets(uId, mId);
 CREATE INDEX idx_comments_user_market ON comments(uId, mId);
-CREATE INDEX idx_markets_end_date_volume ON markets(end_date, volume);
 CREATE INDEX idx_comments_mId ON comments(mId);
