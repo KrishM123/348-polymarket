@@ -22,10 +22,8 @@ from tqdm import tqdm
 import time
 from sql_loader import SQLLoader
 
-# Load environment variables
 load_dotenv()
 
-# Database configuration from environment variables
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', '127.0.0.1'),
     'user': os.getenv('DB_USER', 'polymarket'),
@@ -33,21 +31,14 @@ DB_CONFIG = {
     'database': os.getenv('DB_DATABASE', 'polymarket')
 }
 
-# Initialize Faker for generating realistic data
 fake = faker.Faker()
-
-# Configuration for batch sizes
-BATCH_SIZE = 100  # Process users in batches of 100
-COMMIT_FREQUENCY = 1000  # Commit every 1000 operations
-
-# Initialize SQL loader
+BATCH_SIZE = 100
+COMMIT_FREQUENCY = 1000
 sql_loader = SQLLoader()
 
 def get_db_connection():
-    """Create and return a database connection"""
     try:
         connection = mysql.connector.connect(**DB_CONFIG)
-        # Remove autocommit to handle transactions properly
         connection.autocommit = False
         return connection
     except Error as e:
@@ -55,16 +46,13 @@ def get_db_connection():
         return None
 
 def fetch_polymarket_markets():
-    """Reuse the existing market fetching logic from seed_database.py"""
     from seed_database import fetch_polymarket_markets
     return fetch_polymarket_markets()
 
 def create_production_users(connection, num_users: int = 100) -> List[int]:
-    """Create a larger set of realistic users for production"""
     cursor = connection.cursor()
     user_ids = []
     
-    # Create different user types with varying initial balances
     user_types = [
         {'type': 'whale', 'balance_range': (50000, 200000), 'probability': 0.05},
         {'type': 'active_trader', 'balance_range': (10000, 50000), 'probability': 0.15},
@@ -72,13 +60,10 @@ def create_production_users(connection, num_users: int = 100) -> List[int]:
         {'type': 'novice', 'balance_range': (100, 1000), 'probability': 0.30}
     ]
     
-    # Pre-generate all user data
-    print("Generating user data...")
     users_data = []
-    for i in tqdm(range(num_users)):
+    for i in tqdm(range(num_users), desc="Generating users"):
         username = fake.user_name()
         email = fake.email()
-        # Generate shorter phone number to fit VARCHAR(20)
         phone = f"+1{random.randint(1000000000, 9999999999)}"
         
         user_type = random.choices(
@@ -93,21 +78,16 @@ def create_production_users(connection, num_users: int = 100) -> List[int]:
         
         users_data.append((username, email, password_hash, phone, balance))
     
-    # Insert users in batches
-    print("Inserting users in batches...")
-    for i in tqdm(range(0, len(users_data), BATCH_SIZE)):
+    for i in tqdm(range(0, len(users_data), BATCH_SIZE), desc="Inserting users"):
         batch = users_data[i:i + BATCH_SIZE]
         try:
-            # Insert users without balance first
             insert_user_query = sql_loader.get_query('auth.insert_user')
             cursor.executemany(insert_user_query, [(user[0], user[1], user[2], user[3]) for user in batch])
             
-            # Get the actual inserted IDs from the database
             cursor.execute("SELECT uid FROM users ORDER BY uid DESC LIMIT %s", (len(batch),))
             batch_ids = [row[0] for row in cursor.fetchall()]
-            batch_ids.reverse()  # Reverse to get correct order
+            batch_ids.reverse()
             
-            # Update balances separately
             balance_updates = [(user[4], user_id) for user, user_id in zip(batch, batch_ids)]
             cursor.executemany(
                 "UPDATE users SET balance = %s WHERE uid = %s",
@@ -130,40 +110,27 @@ def create_production_users(connection, num_users: int = 100) -> List[int]:
     return user_ids
 
 def create_production_bets(connection, user_ids: List[int], market_ids: List[int]):
-    """Create realistic betting patterns for users"""
     cursor = connection.cursor()
     
-    # Define betting patterns
     patterns = [
         {'type': 'high_roller', 'amt_range': (1000, 10000), 'frequency': 0.1},
         {'type': 'medium_stake', 'amt_range': (100, 1000), 'frequency': 0.3},
         {'type': 'small_stake', 'amt_range': (10, 100), 'frequency': 0.6}
     ]
     
-    # Get SQL queries
     insert_bet_sql = sql_loader.get_query('bets.insert_bet')
     update_balance_sql = sql_loader.get_query('bets.update_user_balance')
-    get_market_odds_sql = "SELECT mid, podd FROM markets"  # Simple query, keep as is
     
-    # Pre-calculate market odds for efficiency
-    print("Fetching market odds...")
-    cursor.execute(get_market_odds_sql)
+    cursor.execute("SELECT mid, podd FROM markets")
     market_odds_map = dict(cursor.fetchall())
     
-    # Validate that we have user IDs and market IDs
     if not user_ids or not market_ids:
-        print("No user IDs or market IDs available for betting")
         cursor.close()
         return
     
-    print(f"Creating bets for {len(user_ids)} users across {len(market_ids)} markets...")
-    
-    # Process users in batches
-    print("Creating bets...")
-    for i in tqdm(range(0, len(user_ids), BATCH_SIZE)):
+    for i in tqdm(range(0, len(user_ids), BATCH_SIZE), desc="Creating bets"):
         batch_users = user_ids[i:i + BATCH_SIZE]
         
-        # Fetch balances for batch - need to use dynamic IN clause for multiple users
         get_batch_balances_sql = "SELECT uid, balance FROM users WHERE uid IN ({})".format(
             ','.join(['%s'] * len(batch_users))
         )
@@ -178,14 +145,12 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 continue
                 
             balance = float(user_balances[user_id])
-            
-            # Number of bets varies by user's balance
             num_bets = int(np.random.normal(
-                loc=min(5, balance/100),  # Reduced average bets for scale
+                loc=min(5, balance/100),
                 scale=2,
                 size=1
             )[0])
-            num_bets = max(1, min(10, num_bets))  # Cap at 10 bets per user
+            num_bets = max(1, min(10, num_bets))
             
             user_total_bets = 0
             for _ in range(num_bets):
@@ -199,7 +164,6 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                     k=1
                 )[0]
                 
-                # Calculate bet amount
                 max_bet = min(pattern['amt_range'][1], balance * 0.2)
                 min_bet = min(pattern['amt_range'][0], max_bet)
                 
@@ -211,15 +175,12 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 if amount > (balance - user_total_bets) or amount <= 0:
                     continue
                 
-                # Get market odds with variation
                 if market_id not in market_odds_map:
                     continue
                     
                 market_odds = float(market_odds_map[market_id])
                 odds_variation = random.uniform(-0.05, 0.05)
-                odds = max(0.01, min(0.99, market_odds + odds_variation))
-                # Ensure odds precision matches schema (3,2) 
-                odds = round(odds, 2)
+                odds = round(max(0.01, min(0.99, market_odds + odds_variation)), 2)
                 
                 is_yes = random.random() < odds
                 
@@ -229,7 +190,6 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
             if user_total_bets > 0:
                 balance_updates.append((user_total_bets, user_id))
         
-        # Batch insert bets using SQL loader
         if bets_data:
             try:
                 cursor.executemany(insert_bet_sql, bets_data)
@@ -239,7 +199,6 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 connection.rollback()
                 continue
         
-        # Batch update balances using SQL loader
         if balance_updates:
             try:
                 cursor.executemany(update_balance_sql, balance_updates)
@@ -252,16 +211,12 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
     cursor.close()
 
 def create_production_comments(connection, user_ids: List[int], market_ids: List[int]):
-    """Create realistic comment threads with varied engagement"""
     cursor = connection.cursor()
     
-    # Validate inputs
     if not user_ids or not market_ids:
-        print("No user IDs or market IDs available for comments")
         cursor.close()
         return
     
-    # Comment templates and components
     comment_templates = [
         "I {sentiment} this prediction because {reason}",
         "The odds seem {odds_opinion}. {explanation}",
@@ -302,15 +257,11 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
         'momentum is building'
     ]
     
-    print("Creating comments...")
-    # Process markets in batches for comments
-    for market_id in tqdm(market_ids):
-        # Reduce number of root comments for scale
+    for market_id in tqdm(market_ids, desc="Creating comments"):
         num_root_comments = random.randint(2, 5)
         
         for _ in range(num_root_comments):
             try:
-                # Create root comment
                 user_id = random.choice(user_ids)
                 template = random.choice(comment_templates)
                 
@@ -327,16 +278,13 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                     observation=random.choice(observations)
                 )
                 
-                # Use SQL loader for comment insertion
                 insert_comment_query = sql_loader.get_query('comments.insert_comment')
                 cursor.execute(insert_comment_query, (user_id, market_id, content))
                 
                 root_comment_id = cursor.lastrowid
                 
-                # Reduce number of replies for scale
                 num_replies = random.randint(0, 3)
                 
-                # Create replies one by one to get correct IDs
                 for _ in range(num_replies):
                     replier_id = random.choice(user_ids)
                     reply_template = random.choice(comment_templates)
@@ -353,11 +301,9 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                         observation=random.choice(observations)
                     )
                     
-                    # Insert reply comment
                     cursor.execute(insert_comment_query, (replier_id, market_id, reply_content))
                     reply_comment_id = cursor.lastrowid
                     
-                    # Create parent-child relationship
                     create_parent_child_query = sql_loader.get_query('comments.create_parent_child_relationship')
                     cursor.execute(create_parent_child_query, (root_comment_id, reply_comment_id))
                 
@@ -371,7 +317,6 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
     cursor.close()
 
 def main():
-    """Main execution function"""
     start_time = time.time()
     print("Starting production data generation...")
     
@@ -380,12 +325,8 @@ def main():
         return
     
     try:
-        # Fetch markets from Polymarket API (reusing existing logic)
-        print("\nFetching markets from API...")
         markets_data = fetch_polymarket_markets()
         
-        # Create markets from API data (reusing existing logic)
-        print("\nCreating markets...")
         from seed_database import create_markets_from_api
         market_ids = create_markets_from_api(connection, markets_data)
         
@@ -394,27 +335,19 @@ def main():
         
         print(f"\nCreating production dataset with 100 users...")
         
-        # Create users
-        print("\nCreating users...")
         user_ids = create_production_users(connection, 100)
         print(f"Created {len(user_ids)} users")
         
-        # Create bets
-        print("\nCreating bets...")
         create_production_bets(connection, user_ids, market_ids)
         
-        # Create comments and replies
-        print("\nCreating comments and replies...")
         create_production_comments(connection, user_ids, market_ids)
         
-        # Final commit to ensure all changes are saved
         connection.commit()
         
         end_time = time.time()
         duration = end_time - start_time
         print(f"\nProduction dataset creation completed in {duration:.2f} seconds!")
         
-        # Show final statistics
         cursor = connection.cursor()
         cursor.execute("SELECT COUNT(*) FROM users")
         user_count = cursor.fetchone()[0]
