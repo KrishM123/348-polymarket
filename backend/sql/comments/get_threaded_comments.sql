@@ -39,4 +39,4 @@ SELECT
     parent_id,
     level
 FROM threaded_comments
-ORDER BY level, created_at; 
+ORDER BY level, created_at DESC; 
