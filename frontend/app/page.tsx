@@ -12,8 +12,8 @@ type ViewMode = "latest" | "trending";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [markets, setMarkets] = useState<Market[] | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("latest");
 
@@ -62,7 +62,7 @@ export default function Home() {
           </ToggleGroup>
         </div>
 
-        {!isAuthenticated && (
+        {!isAuthenticated && !loading && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Please login or create an account</AlertTitle>
@@ -88,13 +88,13 @@ export default function Home() {
           </Alert>
         )}
 
-        {!loading && !error && markets.length === 0 && (
+        {!loading && !error && markets && markets.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500">No markets available at the moment.</p>
           </div>
         )}
 
-        {!loading && !error && markets.length > 0 && (
+        {!loading && !error && markets && markets.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {markets.map((market) => (
               <MarketCard key={market.mid} market={market} />

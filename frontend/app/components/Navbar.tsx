@@ -7,7 +7,7 @@ import RegisterForm from "./RegisterForm";
 import { Button } from "@/components/ui/button";
 
 const Navbar = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
 
@@ -23,9 +23,11 @@ const Navbar = () => {
         </a>
 
         <div className="flex items-center gap-4">
-          {isAuthenticated ? (
+          {loading ? (
+            <div className="h-8 w-24 bg-gray-200 rounded-md animate-pulse" />
+          ) : isAuthenticated ? (
             <div className="flex items-center gap-4">
-              <div className="text-sm">
+              <a href="/profile" className="text-sm cursor-pointer">
                 <span className="text-gray-600">Welcome, </span>
                 <span className="font-semibold text-blue-600">
                   {user?.username}
@@ -33,7 +35,7 @@ const Navbar = () => {
                 <span className="text-gray-600 ml-2">
                   (${user?.balance?.toFixed(2)})
                 </span>
-              </div>
+              </a>
               <Button onClick={handleLogout} variant="outline" size="sm">
                 Logout
               </Button>
