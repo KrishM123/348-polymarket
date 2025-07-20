@@ -1,59 +1,52 @@
+WITH user_market_stats AS (
+    SELECT 
+        u.uid,
+        u.uname,
+        u.balance as current_balance,
+        b.mId,
+        b.yes,
+        
+        -- Calculate total amount bet and total number of bet units for buying (positive amounts)
+        SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END) as total_bought_amount,
+        SUM(CASE WHEN b.amt > 0 THEN b.amt / b.podd ELSE 0 END) as total_bought_units,
+        
+        -- Calculate total amount sold and total number of bet units for selling (negative amounts)
+        SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END) as total_sold_amount,
+        SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) / b.podd ELSE 0 END) as total_sold_units
+        
+    FROM users u
+    LEFT JOIN bets b ON u.uid = b.uId
+    
+    GROUP BY u.uid, u.uname, u.balance, b.mId, b.yes
+),
+
+market_realized_gains AS (
+    SELECT 
+        uid,
+        uname,
+        current_balance,
+        mId,
+        yes,
+        total_sold_units,
+        
+        -- Calculate realized gains: (avg_sell_price - avg_buy_price) * units_sold
+        CASE 
+            WHEN total_sold_units > 0 AND total_bought_units > 0 
+            THEN ((total_sold_amount / total_sold_units) - (total_bought_amount / total_bought_units)) * total_sold_units
+            ELSE 0 
+        END as market_realized_gains
+        
+    FROM user_market_stats
+)
+
 SELECT 
-    u.uid,
-    u.uname,
-    u.balance as current_balance,
+    uid,
+    uname,
+    current_balance,
+    SUM(market_realized_gains) as realized_gains
     
-    -- Calculate realized gains (from sold bets - negative amounts)
-    COALESCE(SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END), 0) as realized_gains,
-    
-    -- Calculate unrealized gains (from active bets - positive amounts)
-    -- This represents the potential profit if the user were to sell their position at current market odds
-    COALESCE(SUM(CASE WHEN b.amt > 0 THEN 
-        CASE 
-            WHEN b.yes = 1 THEN 
-                -- For YES bets: (bet_amt) * (curr_podd / original_podd)
-                (b.amt * (m.podd / b.podd)) - b.amt
-            ELSE 
-                -- For NO bets: (bet_amt) * ((1-curr_podd) / (1-original_podd))
-                (b.amt * ((1 - m.podd) / (1 - b.podd))) - b.amt
-        END
-    ELSE 0 END), 0) as unrealized_gains,
-    
-    -- Total profits (realized + unrealized)
-    (COALESCE(SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END), 0) + 
-     COALESCE(SUM(CASE WHEN b.amt > 0 THEN 
-        CASE 
-            WHEN b.yes = 1 THEN 
-                (b.amt * (m.podd / b.podd)) - b.amt
-            ELSE 
-                (b.amt * ((1 - m.podd) / (1 - b.podd))) - b.amt
-        END
-    ELSE 0 END), 0)) as total_profits,
-    
-    -- Calculate percent change from initial balance
-    -- Initial balance = current_balance - realized_gains + total_bet_amounts
-    CASE 
-        WHEN (u.balance - COALESCE(SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END), 0) + 
-              COALESCE(SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END), 0)) > 0 
-        THEN 
-            ((COALESCE(SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END), 0) + 
-              COALESCE(SUM(CASE WHEN b.amt > 0 THEN 
-                CASE 
-                    WHEN b.yes = 1 THEN 
-                        (b.amt * (m.podd / b.podd)) - b.amt
-                    ELSE 
-                        (b.amt * ((1 - m.podd) / (1 - b.podd))) - b.amt
-                END
-            ELSE 0 END), 0)) / 
-            (u.balance - COALESCE(SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END), 0) + 
-             COALESCE(SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END), 0))) * 100
-        ELSE 0
-    END as percent_change
+FROM market_realized_gains
 
-FROM users u
-LEFT JOIN bets b ON u.uid = b.uId
-LEFT JOIN markets m ON b.mId = m.mid
+GROUP BY uid, uname, current_balance
 
-GROUP BY u.uid, u.uname, u.balance
-
-ORDER BY total_profits DESC; 
+ORDER BY realized_gains DESC; 

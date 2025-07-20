@@ -82,7 +82,18 @@ export interface UserProfitsResponse {
 
 export const marketsAPI = {
   getMarkets: async (): Promise<MarketsResponse> => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets`);
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets`, {
+      headers,
+    });
 
     if (!response.ok) {
       const error = await response.json();
@@ -95,8 +106,18 @@ export const marketsAPI = {
   getMarket: async (
     marketId: number
   ): Promise<{ success: boolean; market: Market }> => {
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}`
+      `${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}`,
+      { headers }
     );
 
     if (!response.ok) {
@@ -203,8 +224,18 @@ export const marketsAPI = {
   },
 
   async getTrendingMarkets(): Promise<MarketsResponse> {
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/markets/trending`
+      `${process.env.NEXT_PUBLIC_API_URL}/markets/trending`,
+      { headers }
     );
     if (!response.ok) {
       const error = await response.json();
