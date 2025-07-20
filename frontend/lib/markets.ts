@@ -186,4 +186,15 @@ export const marketsAPI = {
     }
     return response.json();
   },
+
+  async getTrendingMarkets(): Promise<MarketsResponse> {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/markets/trending`
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch trending markets");
+    }
+    return response.json();
+  },
 };
