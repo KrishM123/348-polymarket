@@ -2,17 +2,20 @@
 
 import { useAuth } from "./contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Calendar, Loader2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { marketsAPI, Market } from "../lib/markets";
 import MarketCard from "./components/MarketCard";
-import { Loader2 } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+type ViewMode = "latest" | "trending";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("latest");
 
   useEffect(() => {
     const fetchMarkets = async () => {
@@ -20,7 +23,10 @@ export default function Home() {
       setError("");
 
       try {
-        const response = await marketsAPI.getMarkets();
+        const response =
+          viewMode === "trending"
+            ? await marketsAPI.getTrendingMarkets()
+            : await marketsAPI.getMarkets();
         setMarkets(response.markets);
       } catch (err) {
         setError(
@@ -32,11 +38,30 @@ export default function Home() {
     };
 
     fetchMarkets();
-  }, []);
+  }, [viewMode]);
 
   return (
     <div className="px-8 py-6">
       <div className="mx-auto">
+        <div className="flex justify-end mb-4">
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            variant="outline"
+            onValueChange={(value) => {
+              if (value) setViewMode(value as ViewMode);
+            }}
+            aria-label="Market view mode"
+          >
+            <ToggleGroupItem value="latest" aria-label="Latest markets">
+              <Calendar className="h-5 w-5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="trending" aria-label="Trending markets">
+              <TrendingUp className="h-5 w-5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         {!isAuthenticated && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />

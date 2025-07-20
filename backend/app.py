@@ -273,6 +273,38 @@ def get_markets():
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to fetch markets'}), 500
 
+@app.route('/markets/trending', methods=['GET'])
+def get_trending_markets():
+    """Get trending markets based on recent activity"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        execute_timed_query(cursor, 'markets.get_trending_markets')
+        
+        markets = cursor.fetchall()
+        
+        for market in markets:
+            if market['end_date']:
+                market['end_date'] = market['end_date'].isoformat()
+            market['podd'] = float(market['podd'])
+            market['volume'] = float(market['volume'])
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'markets': markets,
+            'count': len(markets)
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to fetch trending markets'}), 500
+
 @app.route('/markets/<int:market_id>', methods=['GET'])
 def get_market(market_id):
     """Get a specific market with current odds and volume"""
