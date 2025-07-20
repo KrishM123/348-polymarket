@@ -357,6 +357,7 @@ def get_market_bets(market_id):
 def create_bet(market_id):
     """Create a new bet on a specific market"""
     connection = get_db_connection()
+    connection.autocommit = False
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
     
@@ -381,11 +382,13 @@ def create_bet(market_id):
             return jsonify({'error': 'Amount must be positive'}), 400
         
         cursor = connection.cursor()
+        cursor.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE") # set isolation level to serializable
         
         # Check if market exists and is still active, and get current odds
-        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_active_for_update', (market_id,))
         market_result = cursor.fetchone()
         if not market_result:
+            connection.rollback() # rollback the transaction
             cursor.close()
             connection.close()
             return jsonify({'error': 'Market not found or has ended'}), 404
@@ -396,11 +399,13 @@ def create_bet(market_id):
         execute_timed_query(cursor, 'bets.get_user_balance', (user_id,))
         user = cursor.fetchone()
         if not user:
+            connection.rollback()
             cursor.close()
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
         if user[1] < amount:
+            connection.rollback()
             cursor.close()
             connection.close()
             return jsonify({'error': 'Insufficient balance'}), 400
@@ -421,6 +426,7 @@ def create_bet(market_id):
             new_odds = calculate_market_odds(market_id, cursor)
             execute_timed_query(cursor, 'markets.update_market_odds', (new_odds, market_id))
             
+            connection.commit() # commit the transaction
             cursor.close()
             connection.close()
             
@@ -437,14 +443,21 @@ def create_bet(market_id):
             }), 201
             
         except Error as e:
+            connection.rollback() # rollback the transaction
             cursor.close()
             connection.close()
             print(f"Transaction error: {e}")
             return jsonify({'error': 'Failed to create bet'}), 500
         
     except (ValueError, TypeError) as e:
+        connection.rollback()
+        cursor.close()
+        connection.close()
         return jsonify({'error': 'Invalid data format'}), 400
     except Error as e:
+        connection.rollback()
+        cursor.close()
+        connection.close()
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create bet'}), 500
 
