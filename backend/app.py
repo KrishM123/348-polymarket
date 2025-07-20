@@ -448,6 +448,63 @@ def create_bet(market_id):
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create bet'}), 500
 
+@app.route('/bets/<int:bet_id>/sell', methods=['POST'])
+@token_required
+def sell_bet(bet_id):
+    """Sell an existing bet"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+    
+        user_id = request.current_user['user_id']
+        
+        execute_timed_query(cursor, 'bets.get_bet_by_id', (bet_id,))
+        bet_to_sell = cursor.fetchone()
+        
+        if not bet_to_sell:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Bet not found'}), 404
+            
+        # Check if the user owns the bet
+        if bet_to_sell['uId'] != user_id:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'You do not own this bet'}), 403
+            
+        # Create a new bet with a minus amount to trigger the sell trigger which wupdates the user's balance and market state
+        execute_timed_query(
+            cursor, 
+            'bets.insert_bet',
+            (
+                bet_to_sell['uId'],
+                bet_to_sell['mId'],
+                bet_to_sell['podd'],
+                -bet_to_sell['amt'],  # Negative amount to show a sell
+                bet_to_sell['yes']
+            )
+        )
+        
+        sold_bet_id = cursor.lastrowid
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bet sold successfully',
+            'sold_bet_id': bet_id,
+            'cancellation_bet_id': sold_bet_id
+        }), 200
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to sell bet'}), 500
+
 @app.route('/markets/<int:market_id>/comments', methods=['GET'])
 def get_market_comments(market_id):
     """Get all comments for a specific market in a threaded structure"""
@@ -461,7 +518,6 @@ def get_market_comments(market_id):
         execute_timed_query(cursor, 'comments.get_threaded_comments', (market_id, market_id))
         comments = cursor.fetchall()
 
-        # Convert datetime objects to strings for JSON serialization
         for comment in comments:
             comment['created_at'] = comment['created_at'].isoformat()
 
