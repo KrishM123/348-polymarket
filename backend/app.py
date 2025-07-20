@@ -417,7 +417,7 @@ def create_bet(market_id):
         cursor.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE") # set isolation level to serializable
         
         # Check if market exists and is still active, and get current odds
-        execute_timed_query(cursor, 'validation.check_market_active_for_update', (market_id,))
+        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
         market_result = cursor.fetchone()
         if not market_result:
             connection.rollback() # rollback the transaction
@@ -708,6 +708,41 @@ def create_reply(market_id, parent_id):
     except Error as e:
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create reply'}), 500
+
+@app.route('/api/user-profits', methods=['GET'])
+def get_user_profits():
+    """Get all users sorted by their total profits (realized + unrealized gains)"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # Execute the user profits query
+        execute_timed_query(cursor, 'bets.get_user_profits')
+        
+        results = cursor.fetchall()
+        
+        # Convert Decimal objects to float for JSON serialization
+        for user in results:
+            user['current_balance'] = float(user['current_balance'])
+            user['realized_gains'] = float(user['realized_gains'])
+            user['unrealized_gains'] = float(user['unrealized_gains'])
+            user['total_profits'] = float(user['total_profits'])
+            user['percent_change'] = float(user['percent_change'])
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'users': results
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to get user profits'}), 500
 
 @app.route('/api/query-stats', methods=['GET'])
 def get_query_stats():

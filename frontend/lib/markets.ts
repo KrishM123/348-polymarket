@@ -65,6 +65,21 @@ export interface CommentsResponse {
   count: number;
 }
 
+export interface UserProfit {
+  uid: number;
+  uname: string;
+  current_balance: number;
+  realized_gains: number;
+  unrealized_gains: number;
+  total_profits: number;
+  percent_change: number;
+}
+
+export interface UserProfitsResponse {
+  success: boolean;
+  users: UserProfit[];
+}
+
 export const marketsAPI = {
   getMarkets: async (): Promise<MarketsResponse> => {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets`);
@@ -194,6 +209,17 @@ export const marketsAPI = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to fetch trending markets");
+    }
+    return response.json();
+  },
+
+  async getUserProfits(): Promise<UserProfitsResponse> {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user-profits`
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch user profits");
     }
     return response.json();
   },
