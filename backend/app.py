@@ -582,40 +582,81 @@ def create_bet(market_id):
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create bet'}), 500
 
-@app.route('/bets/<int:bet_id>/sell', methods=['POST'])
+@app.route('/markets/<int:market_id>/sell', methods=['POST'])
 @token_required
-def sell_bet(bet_id):
-    """Sell an existing bet"""
+def sell_holdings(market_id):
+    """Sell holdings in a specific market"""
     connection = get_db_connection()
+    connection.autocommit = False
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = connection.cursor(dictionary=True)
-    
+        # Get JSON data from request
+        data = request.get_json()
+        
+        # Get user ID from JWT token
         user_id = request.current_user['user_id']
         
-        execute_timed_query(cursor, 'bets.get_bet_by_id', (bet_id,))
-        bet_to_sell = cursor.fetchone()
+        # Validate required fields
+        required_fields = ['amount', 'prediction']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        if not bet_to_sell:
+        amount = float(data['amount'])
+        prediction = bool(data['prediction'])  # True for YES, False for NO
+        
+        # Validate data ranges
+        if amount <= 0:
+            return jsonify({'error': 'Amount must be positive'}), 400
+        
+        cursor = connection.cursor(dictionary=True)
+        execute_timed_query(cursor, 'transactions.set_serializable_isolation')
+        
+        # Check if market exists and is still active
+        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
+        market_result = cursor.fetchone()
+        if not market_result:
+            connection.rollback()
             cursor.close()
             connection.close()
-            return jsonify({'error': 'Bet not found'}), 404
-            
-        # Check if the user owns the bet
-        if bet_to_sell['uId'] != user_id:
+            return jsonify({'error': 'Market not found or has ended'}), 404
+        
+        # Check if user has sufficient holdings to sell
+        execute_timed_query(cursor, 'bets.get_user_holdings', (user_id,))
+        holdings = cursor.fetchall()
+        
+        # Find the specific holding for this market and prediction
+        target_holding = None
+        for holding in holdings:
+            if holding['mId'] == market_id and holding['yes'] == prediction:
+                target_holding = holding
+                break
+        
+        if not target_holding:
+            connection.rollback()
             cursor.close()
             connection.close()
-            return jsonify({'error': 'You do not own this bet'}), 403
-            
+            return jsonify({'error': 'No holdings found for this market and prediction'}), 400
+        
+        # Check if user has enough units to sell
+        net_units = float(target_holding['net_units'])
+        units_to_sell = amount / float(target_holding['avg_buy_price_per_unit'])
+        
+        if units_to_sell > net_units:
+            connection.rollback()
+            cursor.close()
+            connection.close()
+            return jsonify({'error': f'Insufficient holdings. You have {net_units:.2f} units, trying to sell {units_to_sell:.2f} units'}), 400
+        
         # Calculate current odds excluding the user's bets to prevent manipulation
-        current_odds = get_user_market_odds(bet_to_sell['mId'], user_id, cursor)
+        current_odds = get_user_market_odds(market_id, user_id, cursor)
         
-        # Insert a negative amount bet to trigger the unified bet handler
-        execute_timed_query(cursor, 'bets.insert_bet', (bet_to_sell['uId'], bet_to_sell['mId'], current_odds, -bet_to_sell['amt'], bet_to_sell['yes']))
+        # Insert a negative amount bet to sell holdings
+        execute_timed_query(cursor, 'bets.insert_bet', (user_id, market_id, current_odds, -amount, prediction))
         
-        sold_bet_id = cursor.lastrowid
+        sell_bet_id = cursor.lastrowid
         
         connection.commit()
         cursor.close()
@@ -623,14 +664,27 @@ def sell_bet(bet_id):
         
         return jsonify({
             'success': True,
-            'message': 'Bet sold successfully',
-            'sold_bet_id': bet_id,
-            'cancellation_bet_id': sold_bet_id
-        }), 200
+            'message': 'Holdings sold successfully',
+            'sell_bet_id': sell_bet_id,
+            'market_id': market_id,
+            'user_id': user_id,
+            'amount': amount,
+            'odds_at_sell': current_odds,
+            'prediction': prediction,
+            'units_sold': units_to_sell
+        }), 201
         
+    except (ValueError, TypeError) as e:
+        connection.rollback()
+        cursor.close()
+        connection.close()
+        return jsonify({'error': 'Invalid data format'}), 400
     except Error as e:
+        connection.rollback()
+        cursor.close()
+        connection.close()
         print(f"Database error: {e}")
-        return jsonify({'error': 'Failed to sell bet'}), 500
+        return jsonify({'error': 'Failed to sell holdings'}), 500
 
 @app.route('/markets/<int:market_id>/comments', methods=['GET'])
 def get_market_comments(market_id):
@@ -809,30 +863,31 @@ def get_user_profits():
         for user in results:
             user_id = user['uid']
             
-            # Get all active bets for this user (both positive and negative amounts)
-            execute_timed_query(cursor, 'bets.get_user_bets', (user_id,))
-            user_bets = cursor.fetchall()
+            # Get user holdings to calculate unrealized gains
+            execute_timed_query(cursor, 'bets.get_user_holdings', (user_id,))
+            holdings = cursor.fetchall()
             
             unrealized_gains = 0.0
             
-            for bet in user_bets:
-                market_id = bet['mId']
-                bet_amount = float(bet['amt'])
-                bet_odds = float(bet['podd'])
-                is_yes = bool(bet['yes'])
+            for holding in holdings:
+                market_id = holding['mId']
+                net_units = float(holding['net_units'])
+                avg_buy_price = float(holding['avg_buy_price_per_unit'])
+                total_invested = float(holding['total_invested'])
+                is_yes = bool(holding['yes'])
                 
                 # Calculate current odds excluding this user's volume
                 current_odds = get_user_market_odds(market_id, user_id, cursor)
                 
-                # Calculate unrealized gains: current value - original bet amount
-                if bet_amount > 0:  # Buy case
-                    # Current value of bet units minus original bet amount
-                    current_value = (bet_amount / bet_odds) * current_odds
-                    unrealized_gains += current_value - bet_amount
-                else:  # Sell case
-                    # Current value of bet units minus original bet amount
-                    current_value = (abs(bet_amount) / (1 - bet_odds)) * (1 - current_odds)
-                    unrealized_gains += current_value - abs(bet_amount)
+                # Calculate unrealized gains for this holding
+                if is_yes:
+                    # For YES holdings: net_units * current_odds - total_invested
+                    current_value = net_units * current_odds
+                    unrealized_gains += current_value - total_invested
+                else:
+                    # For NO holdings: net_units * (1-current_odds) - total_invested
+                    current_value = net_units * (1 - current_odds)
+                    unrealized_gains += current_value - total_invested
             
             # Update user data
             user['current_balance'] = float(user['current_balance'])
@@ -840,9 +895,9 @@ def get_user_profits():
             user['unrealized_gains'] = float(unrealized_gains)
             user['total_profits'] = float(user['realized_gains']) + float(unrealized_gains)
             
-            # Calculate percent change from initial balance
-            # For the new formula, we need to calculate the initial investment differently
-            total_investment = sum([float(bet['amt']) for bet in user_bets if float(bet['amt']) > 0])
+            # Calculate percent change from initial investment
+            # Use total invested from holdings for more accurate calculation
+            total_investment = sum([float(holding['total_invested']) for holding in holdings])
             if total_investment > 0:
                 user['percent_change'] = (user['total_profits'] / total_investment) * 100
             else:
