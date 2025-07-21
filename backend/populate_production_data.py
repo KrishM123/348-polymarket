@@ -104,7 +104,7 @@ def create_production_users(connection, num_users: int = 100) -> List[int]:
     
     return user_ids
 
-def create_production_bets(connection, user_ids: List[int], market_ids: List[int]):
+def create_production_bets(connection, user_ids: List[int], markets_data: List[Dict[str, Any]]):
     cursor = connection.cursor()
     
     patterns = [
@@ -113,15 +113,18 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         {'type': 'small_stake', 'amt_range': (10, 100), 'frequency': 0.6}
     ]
     
-    insert_bet_sql = sql_loader.get_query('bets.insert_bet')
+    insert_bet_sql = sql_loader.get_query('bets.insert_bet_with_timestamp')
     update_balance_sql = sql_loader.get_query('bets.update_user_balance')
     
     cursor.execute("SELECT mid, podd FROM markets")
     market_odds_map = dict(cursor.fetchall())
     
-    if not user_ids or not market_ids:
+    if not user_ids or not markets_data:
         cursor.close()
         return
+
+    market_map = {market['mid']: market for market in markets_data}
+    market_ids = list(market_map.keys())
     
     # Track yes/no counts for each market to enforce distribution
     market_bet_counts = {mid: {'yes': 0, 'no': 0} for mid in market_ids}
@@ -142,6 +145,17 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 continue
                 
             market_id = random.choice(market_ids)
+            market_info = market_map[market_id]
+            market_created_at = market_info['createdAt']
+            now = datetime.now()
+
+            if market_created_at > now:
+                 bet_created_at = now
+            else:
+                time_diff_seconds = (now - market_created_at).total_seconds()
+                random_seconds = random.uniform(0, time_diff_seconds)
+                bet_created_at = market_created_at + timedelta(seconds=random_seconds)
+
             pattern = random.choices(
                 patterns,
                 weights=[p['frequency'] for p in patterns],
@@ -188,7 +202,7 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 market_bet_counts[market_id]['no'] += 1
             
             try:
-                cursor.execute(insert_bet_sql, (user_id, market_id, odds, amount, is_yes))
+                cursor.execute(insert_bet_sql, (user_id, market_id, odds, amount, is_yes, bet_created_at))
                 user_total_bets += amount
             except Error as e:
                 print(f"Error inserting bet: {e}")
@@ -239,13 +253,16 @@ def update_market_volumes(connection):
     finally:
         cursor.close()
 
-def create_production_comments(connection, user_ids: List[int], market_ids: List[int]):
+def create_production_comments(connection, user_ids: List[int], markets_data: List[Dict[str, Any]]):
     cursor = connection.cursor()
     
-    if not user_ids or not market_ids:
+    if not user_ids or not markets_data:
         cursor.close()
         return
     
+    market_map = {market['mid']: market for market in markets_data}
+    market_ids = list(market_map.keys())
+
     comment_templates = [
         "I {sentiment} this prediction because {reason}",
         "The odds seem {odds_opinion}. {explanation}",
@@ -288,6 +305,9 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
     
     for market_id in tqdm(market_ids, desc="Creating comments"):
         num_root_comments = random.randint(2, 5)
+        market_info = market_map[market_id]
+        market_created_at = market_info['createdAt']
+        now = datetime.now()
         
         for _ in range(num_root_comments):
             try:
@@ -306,9 +326,16 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                     timeframe=random.choice(timeframes),
                     observation=random.choice(observations)
                 )
+
+                if market_created_at > now:
+                    comment_created_at = now
+                else:
+                    time_diff_seconds = (now - market_created_at).total_seconds()
+                    random_seconds = random.uniform(0, time_diff_seconds)
+                    comment_created_at = market_created_at + timedelta(seconds=random_seconds)
                 
-                insert_comment_query = sql_loader.get_query('comments.insert_comment')
-                cursor.execute(insert_comment_query, (user_id, market_id, content))
+                insert_comment_query = sql_loader.get_query('comments.insert_comment_with_timestamp')
+                cursor.execute(insert_comment_query, (user_id, market_id, content, comment_created_at))
                 
                 root_comment_id = cursor.lastrowid
                 
@@ -329,8 +356,15 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
                         timeframe=random.choice(timeframes),
                         observation=random.choice(observations)
                     )
-                    
-                    cursor.execute(insert_comment_query, (replier_id, market_id, reply_content))
+
+                    if comment_created_at > now:
+                        reply_created_at = now
+                    else:
+                        time_diff_seconds = (now - comment_created_at).total_seconds()
+                        random_seconds = random.uniform(0, time_diff_seconds)
+                        reply_created_at = comment_created_at + timedelta(seconds=random_seconds)
+
+                    cursor.execute(insert_comment_query, (replier_id, market_id, reply_content, reply_created_at))
                     reply_comment_id = cursor.lastrowid
                     
                     create_parent_child_query = sql_loader.get_query('comments.create_parent_child_relationship')
@@ -345,10 +379,10 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
     
     cursor.close()
 
-def create_markets_from_csv(connection, market_names: List[str]) -> List[int]:
+def create_markets_from_csv(connection, market_names: List[str]) -> List[Dict[str, Any]]:
     """Create markets from a list of names from a CSV file."""
     cursor = connection.cursor()
-    market_ids = []
+    markets_data = []
     
     for name in tqdm(market_names, desc="Creating markets from CSV"):
         try:
@@ -356,13 +390,16 @@ def create_markets_from_csv(connection, market_names: List[str]) -> List[int]:
             volume = round(random.uniform(1.0, 10.0), 2)
             odds = 0.50
             end_date = datetime.now() + timedelta(days=random.randint(30, 90))
-            
+            createdAt = datetime.now() - timedelta(days=random.randint(1, 29))
+
             cursor.execute(
                 "INSERT INTO markets (name, description, podd, volume, end_date) VALUES (%s, %s, %s, %s, %s)",
                 (name, description, odds, volume, end_date)
             )
             
-            market_ids.append(cursor.lastrowid)
+            market_id = cursor.lastrowid
+            
+            markets_data.append({'mid': market_id, 'createdAt': createdAt})
         
         except Error as e:
             print(f"Error creating market from CSV: {e}")
@@ -370,7 +407,7 @@ def create_markets_from_csv(connection, market_names: List[str]) -> List[int]:
     
     connection.commit()
     cursor.close()
-    return market_ids
+    return markets_data
 
 def main():
     start_time = time.time()
@@ -385,9 +422,9 @@ def main():
         with open('production_data.csv', 'r') as f:
             market_names = [line.strip() for line in f.readlines()[1:]] # Skip header
 
-        market_ids = create_markets_from_csv(connection, market_names)
+        markets_data = create_markets_from_csv(connection, market_names)
         
-        if not market_ids:
+        if not markets_data:
             raise Exception("No markets were created. Cannot proceed.")
         
         print(f"\nCreating production dataset with 100 users...")
@@ -395,11 +432,11 @@ def main():
         user_ids = create_production_users(connection, 100)
         print(f"Created {len(user_ids)} users")
         
-        create_production_bets(connection, user_ids, market_ids)
+        create_production_bets(connection, user_ids, markets_data)
         
         update_market_volumes(connection)
         
-        create_production_comments(connection, user_ids, market_ids)
+        create_production_comments(connection, user_ids, markets_data)
         
         connection.commit()
         

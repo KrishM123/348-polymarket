@@ -1,0 +1,1 @@
+INSERT INTO bets (uId, mId, podd, amt, yes, createdAt) VALUES (%s, %s, %s, %s, %s, %s); 
