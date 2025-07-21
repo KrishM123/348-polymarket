@@ -206,7 +206,16 @@
 
 ---
 
-### **Slide 12: Advanced Feature 1 - Sell Bet Trigger**
+### **Slide 12: Advanced Features: Our Approach**
+
+*   **Goal:** To demonstrate mastery of sophisticated database engineering beyond basic CRUD operations.
+*   **Validation of Complexity:** The following features meet the requirements for advanced functionality because:
+    *   They employ **fundamentally different database mechanisms** (e.g., reactive triggers vs. time-based events vs. procedural cursors), showcasing a broad skill set.
+    *   Our concurrency control feature is built on **explicit, application-managed transactions**, ensuring true financial-grade integrity and complexity.
+
+---
+
+### **Slide 13: Advanced Feature 1 - Sell Bet Trigger**
 
 *   **Feature:** A hybrid system for safe and efficient bet selling.
 *   **Approach:** A **reactive, row-level trigger** on the `bets` table.
@@ -229,7 +238,7 @@
 
 ---
 
-### **Slide 13: Advanced Feature 2 - Trending Markets**
+### **Slide 14: Advanced Feature 2 - Trending Markets**
 
 *   **Feature:** A real-time market ranking system based on recent activity.
 *   **Approach:** A **declarative, set-based query** that aggregates data.
@@ -255,7 +264,7 @@
 
 ---
 
-### **Slide 14: Advanced Feature 3 - Automated Market Closure**
+### **Slide 15: Advanced Feature 3 - Automated Market Closure**
 
 *   **Feature:** A fully automated system for resolving markets and paying out winners.
 *   **Approach:** **Proactive, time-based automation** using a server scheduler and procedural logic.
@@ -282,7 +291,7 @@
 
 ---
 
-### **Slide 15: Advanced Feature 4 - Row-Level Locking**
+### **Slide 16: Advanced Feature 4 - Row-Level Locking**
 
 *   **Feature:** A system to prevent race conditions during betting.
 *   **Approach:** **Explicit, application-managed transactional control.**
@@ -297,7 +306,7 @@
 
 ---
 
-### **Slide 16: Advanced Feature 5 - Leaderboard**
+### **Slide 17: Advanced Feature 5 - Leaderboard**
 
 *   **Feature:** A global leaderboard ranking all users by total profit.
 *   **Approach (for presentation):** Using **modern, set-based analytical functions**.
@@ -320,7 +329,7 @@
 
 ---
 
-### **Slide 17: Team Contributions**
+### **Slide 18: Team Contributions**
 
 *   **Sanskriti Akhoury:** Led database design (E/R Diagram, relational model), documentation, and contributed to the data generation pipeline and query timer.
 *   **Pearl Natalia:** Led Polymarket API research and integration, refined requirements, and applied strategic indexing for performance.
@@ -330,7 +339,7 @@
 
 ---
 
-### **Slide 18: Project Summary & Future Scope**
+### **Slide 19: Project Summary & Future Scope**
 
 *   **Recap:**
     *   A fully functional, production-ready Polymarket clone.
@@ -343,7 +352,7 @@
 
 ---
 
-### **Slide 19: Q&A**
+### **Slide 20: Q&A**
 
 *   **Title:** Thank You!
 *   **Content:**
