@@ -47,7 +47,7 @@ export default function UserBets({
         amount: -sellAmount,
         prediction: holding.yes,
       });
-      
+
       // Fetch updated balance and update AuthContext
       try {
         const balanceResponse = await usersAPI.getUserBalance();
@@ -55,7 +55,7 @@ export default function UserBets({
       } catch (balanceErr) {
         console.error("Failed to fetch updated balance:", balanceErr);
       }
-      
+
       onBetSold(); // Refresh the holdings list and profile data
       setSellAmounts((prev) => ({ ...prev, [key]: "" })); // Clear input
     } catch (err) {
@@ -84,7 +84,7 @@ export default function UserBets({
     );
   }
 
-  if (holdings.length === 0) {
+  if (holdings.filter((holding) => holding.current_value > 0.1).length === 0) {
     return (
       <p className="text-center text-gray-500 py-6">
         You have no active holdings.
@@ -104,89 +104,95 @@ export default function UserBets({
         <div className="text-center">Action</div>
       </div>
 
-      {holdings.map((holding) => {
-        const key = `${holding.mId}-${holding.yes}`;
-        const sellAmount = sellAmounts[key] || "";
-        const isSelling = sellingHolding === holding;
-        const sellAmountNum = parseFloat(sellAmount);
-        const canSell =
-          !isSelling &&
-          !isNaN(sellAmountNum) &&
-          sellAmountNum > 0 &&
-          sellAmountNum <= holding.current_value;
+      {holdings
+        .filter((holding) => holding.current_value > 0.1)
+        .map((holding) => {
+          const key = `${holding.mId}-${holding.yes}`;
+          const sellAmount = sellAmounts[key] || "";
+          const isSelling = sellingHolding === holding;
+          const sellAmountNum = parseFloat(sellAmount);
+          const canSell =
+            !isSelling &&
+            !isNaN(sellAmountNum) &&
+            sellAmountNum > 0 &&
+            sellAmountNum <= holding.current_value;
 
-        return (
-          <div
-            key={key}
-            className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors items-center"
-          >
-            <Link
-              href={`/markets/${holding.mId}`}
-              className="font-medium text-sm text-blue-600 hover:underline"
+          return (
+            <div
+              key={key}
+              className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors items-center"
             >
-              {holding.market_name}
-            </Link>
-            <div className="text-center">
+              <Link
+                href={`/markets/${holding.mId}`}
+                className="font-medium text-sm text-blue-600 hover:underline"
+              >
+                {holding.market_name}
+              </Link>
+              <div className="text-center">
+                <div
+                  className={`inline-block px-3 py-1 rounded-md text-xs font-medium ${
+                    holding.yes
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {holding.yes ? "YES" : "NO"}
+                </div>
+              </div>
+              <div className="font-semibold text-sm text-right">
+                {holding.net_units.toFixed(2)}
+              </div>
+              <div className="font-semibold text-sm text-right">
+                ${holding.avg_buy_price_per_unit.toFixed(2)}
+              </div>
+              <div className="font-semibold text-sm text-right">
+                ${holding.current_value.toFixed(2)}
+              </div>
               <div
-                className={`inline-block px-3 py-1 rounded-md text-xs font-medium ${
-                  holding.yes
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                className={`font-semibold text-sm text-right flex items-center justify-end ${
+                  holding.unrealized_gains >= 0
+                    ? "text-green-600"
+                    : "text-red-600"
                 }`}
               >
-                {holding.yes ? "YES" : "NO"}
+                {holding.unrealized_gains >= 0 ? (
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                )}
+                ${Math.abs(holding.unrealized_gains).toFixed(2)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  placeholder="Amount ($)"
+                  className="h-9"
+                  value={sellAmount}
+                  onChange={(e) =>
+                    handleAmountChange(
+                      key,
+                      e.target.value,
+                      holding.current_value
+                    )
+                  }
+                  disabled={isSelling}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSell(holding)}
+                  disabled={!canSell}
+                >
+                  {isSelling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Sell"
+                  )}
+                </Button>
               </div>
             </div>
-            <div className="font-semibold text-sm text-right">
-              {holding.net_units.toFixed(2)}
-            </div>
-            <div className="font-semibold text-sm text-right">
-              ${holding.avg_buy_price_per_unit.toFixed(2)}
-            </div>
-            <div className="font-semibold text-sm text-right">
-              ${holding.current_value.toFixed(2)}
-            </div>
-            <div
-              className={`font-semibold text-sm text-right flex items-center justify-end ${
-                holding.unrealized_gains >= 0
-                  ? "text-green-600"
-                  : "text-red-600"
-              }`}
-            >
-              {holding.unrealized_gains >= 0 ? (
-                <TrendingUp className="h-4 w-4 mr-1" />
-              ) : (
-                <TrendingDown className="h-4 w-4 mr-1" />
-              )}
-              ${Math.abs(holding.unrealized_gains).toFixed(2)}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder="Amount ($)"
-                className="h-9"
-                value={sellAmount}
-                onChange={(e) =>
-                  handleAmountChange(key, e.target.value, holding.current_value)
-                }
-                disabled={isSelling}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSell(holding)}
-                disabled={!canSell}
-              >
-                {isSelling ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Sell"
-                )}
-              </Button>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
     </div>
   );
 }
