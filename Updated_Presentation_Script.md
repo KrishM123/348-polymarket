@@ -12,6 +12,8 @@
 
 Our application is a comprehensive Polymarket clone that displays real betting events with dynamic odds calculation, user authentication, and a complete betting ecosystem. We utilize real market data from the Polymarket API, including event details, betting amounts, and calculated probabilities that update in real-time based on market activity. Each user has a virtual wallet displaying their balance, active holdings, and comprehensive profit tracking including both realized and unrealized gains.
 
+At its core, our platform operates on a simple yet powerful mechanic. When you bet on a market, you're not just placing a wager; you're buying shares of a potential outcome. If a market has a 60% chance of resolving to 'YES', a 'YES' share costs $0.60, and a 'NO' share costs $0.40. If the market resolves to 'YES', every 'YES' share you own becomes worth $1, and 'NO' shares become worthless. This dynamic, where the share price reflects the market's perceived probability (`podd`), is what allows for real-time odds and creates a vibrant trading ecosystem.
+
 The primary users of our application are individuals interested in prediction markets, allowing them to browse markets, place bets with dynamic odds, sell holdings, participate in threaded discussions, and track their performance through detailed analytics. Our system also includes a leaderboard showing user profitability rankings and comprehensive market management features."
 
 ## D2. How to Use Your Application? (Demonstrating Functionalities/Features)
@@ -201,9 +203,9 @@ What makes this architecture particularly sophisticated is how all components wo
 **[DEMO SEGMENT 1: Login/Authentication (Feature 5)]**
 **Script:** "First, let's start with user authentication. Our system uses JWT tokens for secure session management. Users can either log in with an existing account or sign up if they're new.
 
-[SQL Complexity] When a user attempts to log in, our backend executes a SELECT query from the users table with username lookup, optimized with an index on users(uname). The password is securely hashed using bcrypt, and upon successful authentication, we generate a JWT token with 24-hour expiration.
+[SQL Complexity] When a user attempts to log in, our backend executes a SELECT query from the users table with username lookup, optimized with an index on users(uname). The password is securely compared using bcrypt, and upon successful authentication, we generate a JWT token with 24-hour expiration.
 
-[SQL Complexity] For registration, we validate email format, check for existing usernames and emails using UNIQUE constraints, hash the password with bcrypt, and insert the new user with a default balance of $0.00.
+[SQL Complexity] For registration, we validate email format, check for existing usernames and emails using SELECT queries, hash the password with bcrypt, and insert the new user with a default balance of $0.00.
 
 **Action:** Go to the login page. Attempt to log in with correct credentials (e.g., alice_trader / testpassword123). Show successful login and token generation. Briefly mention error handling for invalid credentials.
 
@@ -219,9 +221,9 @@ What makes this architecture particularly sophisticated is how all components wo
 **[DEMO SEGMENT 3: Place a Bet on an Outcome (Feature 3)]**
 **Script:** "Let's dive into the core functionality: placing a bet. When you click on a market, you're taken to its detailed page with a sophisticated betting interface. Here, you can input your desired betting amount, select 'Yes' or 'No' for your prediction, and see real-time potential profit calculations.
 
-[SQL Complexity] Placing a bet is a complex transactional process. First, we validate the market's existence and active status. Then, we calculate current odds excluding the user's own volume to prevent manipulation. We check the user's balance, and if sufficient, we insert the bet with the current odds. Our betting system uses a sophisticated unit-based approach where bet_amount / odds = units purchased.
+[SQL Complexity] Placing a bet is a complex transactional process. First, we validate the market's existence and active status. Then, we calculate the current odds excluding the user's own volume to prevent manipulation. We check the user's balance, and if sufficient, we insert the bet with the current odds. A sophisticated `BEFORE INSERT` trigger automatically updates the user's balance and the market's total volume. Our betting system uses a sophisticated unit-based approach where the number of units purchased is calculated based on the bet amount and the odds at the time of the transaction.
 
-[SQL Complexity] The system also supports selling holdings - users can sell their existing positions by placing negative amount bets, which calculates the appropriate units to sell based on their current holdings.
+[SQL Complexity] The system also supports selling holdings. This is handled in the application layer by validating that the user has enough market value in their current holdings before allowing the sale. The sell operation is recorded as a bet with a negative amount.
 
 **Action:** Click on a market from the main page. Show the detailed market page with the betting form. Demonstrate placing a "Yes" or "No" bet with a valid amount. Show the potential profit calculation and confirmation message. If possible, demonstrate the selling functionality.
 
@@ -474,9 +476,181 @@ Looking ahead, while we've achieved significant milestones, there's always room 
 
 Our application demonstrates not just technical competence, but a deep understanding of prediction market mechanics and user experience design."
 
-## D6. Overall Quality of the Presentation
+## D6. Advanced Features Implementation
 
-### Slide 8: Q&A / Thank You
+### Slide 8: Advanced Database Features & SQL Complexity
+**Title:** Advanced Features: Beyond Basic CRUD Operations
+
+**Content:**
+
+**Implemented Advanced Features:**
+
+**1. Sell Bet Logic with BEFORE INSERT Trigger ✅ IMPLEMENTED**
+- **Advanced SQL Feature:** Application-level validation combined with a multi-statement BEFORE INSERT trigger.
+- **Implementation:** The `create_bet` endpoint in `app.py` handles complex validation, while the `handleBetOnInsert` trigger in `backend/sql/bets/bet_trigger.sql` ensures atomic updates.
+- **Complexity:** A hybrid approach where the application validates complex business rules (e.g., preventing over-selling) and the database trigger handles simple, crucial updates to balance and volume.
+- **Advanced Aspects:**
+  - The `BEFORE INSERT` trigger automatically updates user balance and market volume for both buys and sells.
+  - The application layer calculates bet units and performs market value validation *before* the bet is inserted, preventing invalid sell orders.
+  - The trigger itself is simple and efficient, containing conditional IF-ELSE logic to handle positive (buy) and negative (sell) amounts.
+  - This separation of concerns places complex, stateful validation in the application while leaving the database to enforce transactional integrity.
+- **Fundamental Approach:** This feature uses a **reactive, row-level trigger**, which is fundamentally different from the time-based automation of the market scheduler or the declarative, set-based logic of the trending markets query.
+- **Business Logic:** Enforces financial consistency through a combination of application logic and database triggers.
+- **Code Reference:** `backend/sql/bets/bet_trigger.sql`, lines 3-15
+  ```sql
+  CREATE TRIGGER handleBetOnInsert
+  BEFORE INSERT ON bets
+  FOR EACH ROW
+  BEGIN
+      -- Handle both buy and sell cases
+      IF NEW.amt > 0 THEN
+          -- BUY: Deduct amount from user balance and add to market volume
+          UPDATE users SET balance = balance - NEW.amt WHERE uid = NEW.uId;
+          UPDATE markets SET volume = volume + NEW.amt WHERE mid = NEW.mId;
+      ELSEIF NEW.amt < 0 THEN
+          -- SELL: Add amount to user balance and subtract from market volume
+          UPDATE users SET balance = balance + ABS(NEW.amt) WHERE uid = NEW.uId;
+          UPDATE markets SET volume = volume - ABS(NEW.amt) WHERE mid = NEW.mId;
+      END IF;
+  END
+  ```
+
+**2. Trending Markets with Complex JOINs ✅ IMPLEMENTED**
+- **Advanced SQL Feature:** Complex JOINs, GROUP BY, date arithmetic, and exponential decay
+- **Implementation:** `get_trending_markets.sql` with sophisticated scoring algorithm
+- **Complexity:** 
+  - LEFT JOIN with subquery for activity scoring
+  - UNION ALL combining bets and comments with different weights
+  - Exponential decay function: `EXP(-0.03 * TIMESTAMPDIFF(HOUR, activity_date, NOW()))`
+  - Weighted scoring: bets (1.0 weight) vs comments (0.5 weight)
+- **Advanced Aspects:**
+  - Date arithmetic for time-based scoring
+  - Mathematical functions for trend calculation
+  - Complex aggregation with COALESCE for null handling
+  - Real-time ranking based on recent activity
+  - **Dual activity tracking:** Combines betting volume and user engagement metrics
+- **Fundamental Approach:** This feature uses a **declarative, set-based query** to perform complex data aggregation and ranking, contrasting with the procedural, row-by-row processing of the market resolution cursor and the event-driven logic of the insert trigger.
+- **Code Reference:** `backend/sql/markets/get_trending_markets.sql`, lines 1-13
+  ```sql
+  SELECT m.mid, m.name, m.description, m.podd, m.volume, m.end_date
+  FROM markets m
+  LEFT JOIN (
+      SELECT mId, SUM(weight * EXP(-0.03 * TIMESTAMPDIFF(HOUR, activity_date, NOW()))) AS trending_score
+      FROM (
+          SELECT mId, createdAt AS activity_date, 1.0 AS weight FROM bets
+          UNION ALL
+          SELECT mId, created_at AS activity_date, 0.5 AS weight FROM comments
+      ) AS activities
+      GROUP BY mId
+  ) AS activity_scores ON m.mid = activity_scores.mId
+  WHERE m.end_date > NOW()
+  ORDER BY COALESCE(activity_scores.trending_score, 0) DESC, m.mid;
+  ```
+
+**3. Automated Market Closure via Event Scheduler ✅ IMPLEMENTED**
+- **Advanced SQL Feature:** MySQL Event Scheduler, Stored Procedures with Cursors, and Transactional Control.
+- **Implementation:**
+  - `backend/sql/procedures/resolve_markets_procedure.sql`: A comprehensive stored procedure that iterates through expired markets using a cursor to handle the entire resolution and payout process.
+  - `backend/sql/events/market_resolution_event.sql`: A daily event that calls the stored procedure.
+  - `backend/simulate_market_closure.py`: A testing script to manually trigger and verify the resolution process.
+- **Complexity:** 
+  - The procedure defines a `CURSOR` with a `SELECT` query that finds all markets ready for resolution by filtering for `end_date <= NOW()` and `volume > 0`. This is the core logic the scheduler is responsible for running periodically.
+  - It then uses this `CURSOR` to loop through each expired market individually.
+  - For each market, it determines the winning outcome and calculates a `payout_per_unit` by dividing the total losing volume (the prize pool) by the total number of winning units.
+  - All payouts for a market are executed within a `TRANSACTION`, ensuring that all user balances are updated atomically before the market is marked as resolved.
+- **Advanced Aspects:**
+  - This feature demonstrates a robust, automated system for market lifecycle management from expiration to payout.
+  - It uses advanced procedural SQL, including cursors and explicit transactional control, to handle complex financial logic safely and directly within the database.
+- **Fundamental Approach:** This feature demonstrates **proactive, time-based automation** using a server scheduler and procedural logic (cursors), which differs from the reactive trigger on the bets table and the on-demand, set-based aggregation of the trending query.
+  - The encapsulation of the entire process within a single, clean procedure is a professional and maintainable design.
+  - The inclusion of a simulation script highlights a strong approach to testing and verification.
+- **Code Reference:** `backend/sql/procedures/resolve_markets_procedure.sql`, lines 3-4 (procedure) and 10-11 (cursor)
+  ```sql
+  CREATE PROCEDURE `resolve_markets`()
+  BEGIN
+    -- ...
+    DECLARE cur_markets CURSOR FOR 
+        SELECT mid, podd FROM markets WHERE end_date <= NOW() AND volume > 0;
+    -- ...
+  END
+  ```
+
+**4. Row-Level Locking for Market Podd Updates ✅ IMPLEMENTED**
+- **Advanced SQL Feature:** Strict 2-phase locking with `SELECT ... FOR UPDATE` and SERIALIZABLE isolation
+- **Implementation:** Transactions in `app.py` set the isolation level, perform the read-modify-write operations, and then explicitly commit or rollback.
+- **Fundamental Approach:** This feature's complexity comes from its use of **explicit transactional control** managed from the application layer (`connection.commit()`, `connection.rollback()`) combined with MySQL's strictest isolation level (`SERIALIZABLE`). This guarantees atomicity and prevents race conditions, which is a core advanced requirement for financial-grade operations and is fundamentally different from the other database-side automation features.
+- **Code Reference:** `backend/sql/transactions/set_serializable_isolation.sql`, line 1
+  ```sql
+  SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+  ```
+
+  **Sophisticated Odds Calculation with Anti-Manipulation (sub-feature):**
+  - **Dual query strategy:** User-specific odds exclusion and sophisticated volume mapping
+  - **Smoothing factor algorithm:** `(yes_volume + smoothing) / (total_volume + 2*smoothing)` prevents extreme odds
+  - **Bounds enforcement:** Odds constrained between 0.01 and 0.99
+  - **User-specific odds:** Excludes user's own volume to prevent self-manipulation
+  - **Display vs betting odds:** Different calculations for public display vs user betting
+  - **Advanced volume mapping:** 
+    - Buy YES (`yes=1 AND amt>0`) → increases YES volume
+    - Sell NO (`yes=0 AND amt<0`) → increases YES volume (equivalent to buying YES)
+    - Buy NO (`yes=0 AND amt>0`) → increases NO volume
+    - Sell YES (`yes=1 AND amt<0`) → increases NO volume (equivalent to buying NO)
+  - **Advanced Aspects:**
+    - Mathematical smoothing prevents division by zero and extreme probabilities
+    - Anti-manipulation design prevents users from artificially inflating odds
+    - Real-time odds recalculation based on volume distribution
+    - **Prediction market mechanics:** Properly models the relationship between buying/selling and YES/NO volume
+
+**5. Leaderboard with Windowed Aggregates ✅ IMPLEMENTED**
+- **Advanced SQL Feature:** Window functions for ranking and running totals
+- **Implementation:** `get_user_profits.sql` with ROW_NUMBER(), RANK(), and SUM() OVER (ORDER BY)
+- **Complexity:**
+  - Uses window functions to calculate user rankings in a single query
+  - ROW_NUMBER() for unique ranking, RANK() for tied rankings
+  - SUM() OVER (ORDER BY realized_gains DESC) for running totals
+  - Combines multiple tables (users, bets) in consolidated results
+- **Advanced Aspects:**
+  - Window functions for efficient ranking without subqueries
+  - Consolidated results from multiple tables in one query
+  - Real-time leaderboard updates with running totals
+  - Demonstrates advanced SQL aggregation techniques
+- **Fundamental Approach:** This feature leverages **modern, set-based analytical functions (window functions)** to perform complex calculations over an entire result set without requiring procedural cursors, representing a different and more efficient paradigm for ranking and aggregation.
+- **Code Reference:** (Illustrative example for presentation)
+  ```sql
+  WITH user_profits AS (
+      -- This CTE calculates realized and unrealized gains per user
+      SELECT uid, uname, SUM(realized_gain) AS total_realized, SUM(unrealized_gain) AS total_unrealized
+      FROM user_gains_calculation
+      GROUP BY uid, uname
+  )
+  SELECT
+      uname,
+      total_realized + total_unrealized AS total_profit,
+      RANK() OVER (ORDER BY (total_realized + total_unrealized) DESC) AS user_rank,
+      ROW_NUMBER() OVER (ORDER BY (total_realized + total_unrealized) DESC) AS row_num
+  FROM user_profits;
+  ```
+
+**Script (2-3 minutes):**
+"Beyond our core features, we've implemented several advanced database features that demonstrate sophisticated SQL usage and database design principles.
+
+Our **Sell Bet functionality** uses a sophisticated BEFORE INSERT trigger that handles both buy and sell operations. This trigger automatically manages user balances and market volumes, ensuring financial consistency without requiring application-level intervention. The trigger uses multi-statement logic with conditional processing, demonstrating advanced trigger capabilities. We've also implemented a sophisticated unit-based betting system where bet_amount / odds = units purchased, with dual unit pricing logic that properly handles YES bets using current_odds and NO bets using 1 - current_odds, along with careful cost basis tracking for accurate profit calculations. The system includes advanced holdings validation that prevents over-selling by checking current market value against user holdings using complex SQL queries.
+
+Our **Trending Markets feature** implements a complex scoring algorithm using advanced SQL features. The query combines bets and comments with different weights, applies exponential decay based on time, and uses sophisticated JOINs and GROUP BY operations. This creates a real-time ranking system that prioritizes recent activity while considering both betting volume and user engagement.
+
+Our **Automated Market Closure** system uses MySQL's Event Scheduler to automatically resolve expired markets. The logic is encapsulated in a dedicated stored procedure, `resolve_markets`, which uses a cursor to iterate through each expired market, calculate the correct payout per winning share, and distribute the winnings to users within a transaction, ensuring the entire process is atomic and reliable. This modular design is complemented by a simulation script that allows us to test the entire resolution process on demand.
+
+For **Row-Level Locking**, our betting transaction sets the isolation level to SERIALIZABLE and uses a SELECT ... FOR UPDATE on the market row. This ensures that only one transaction can update a market's odds and volume at a time, preventing race conditions and guaranteeing fair, serialized updates. The lock is released immediately on commit, so no client can hold a market row indefinitely.
+
+Our **Leaderboard with Windowed Aggregates** uses advanced window functions to efficiently calculate user rankings and running totals. The implementation uses ROW_NUMBER() for unique rankings, RANK() for handling ties, and SUM() OVER (ORDER BY) for running totals, all in a single consolidated query that combines data from multiple tables.
+
+Additionally, we've implemented **Sophisticated Odds Calculation** with anti-manipulation features. Our system uses a smoothing factor algorithm to prevent extreme odds, enforces bounds between 0.01 and 0.99, and implements user-specific odds that exclude a user's own volume to prevent self-manipulation. The volume distribution logic properly models prediction market mechanics, where selling NO is equivalent to buying YES and selling YES is equivalent to buying NO, ensuring accurate odds calculation. This creates a fair and stable prediction market.
+
+These implementations showcase our understanding of advanced SQL features, database design principles, and the importance of data integrity in financial applications. Each feature goes beyond basic CRUD operations to demonstrate sophisticated database engineering capabilities."
+
+## D7. Overall Quality of the Presentation
+
+### Slide 9: Q&A / Thank You
 **Title:** Thank You!
 
 **Content:**
