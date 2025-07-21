@@ -590,33 +590,21 @@ Now, let's look at the features themselves.
     - **Prediction market mechanics:** Properly models the relationship between buying/selling and YES/NO volume
 
 **5. Leaderboard with Windowed Aggregates ✅ IMPLEMENTED**
-- **Advanced SQL Feature:** Window functions for ranking and running totals
-- **Implementation:** `get_user_profits.sql` with ROW_NUMBER(), RANK(), and SUM() OVER (ORDER BY)
-- **Complexity:**
-  - Uses window functions to calculate user rankings in a single query
-  - ROW_NUMBER() for unique ranking, RANK() for tied rankings
-  - SUM() OVER (ORDER BY realized_gains DESC) for running totals
-  - Combines multiple tables (users, bets) in consolidated results
-- **Advanced Aspects:**
-  - Window functions for efficient ranking without subqueries
-  - Consolidated results from multiple tables in one query
-  - Real-time leaderboard updates with running totals
-  - Demonstrates advanced SQL aggregation techniques
+- **Advanced SQL Feature:** Window functions for ranking and running totals.
 - **Fundamental Approach:** This feature leverages **modern, set-based analytical functions (window functions)** to perform complex calculations over an entire result set without requiring procedural cursors, representing a different and more efficient paradigm for ranking and aggregation.
-- **Code Reference:** (Illustrative example for presentation)
+- **Implementation:** `get_user_profits.sql` uses a series of CTEs to first calculate the realized gains for each user, and then uses `RANK()` and `ROW_NUMBER()` to assign a leaderboard rank in the final `SELECT` statement.
+- **Code Reference:** `backend/sql/bets/get_user_profits.sql`
   ```sql
-  WITH user_profits AS (
-      -- This CTE calculates realized and unrealized gains per user
-      SELECT uid, uname, SUM(realized_gain) AS total_realized, SUM(unrealized_gain) AS total_unrealized
-      FROM user_gains_calculation
-      GROUP BY uid, uname
-  )
-  SELECT
+  -- The final SELECT statement of the query
+  SELECT 
+      uid,
       uname,
-      total_realized + total_unrealized AS total_profit,
-      RANK() OVER (ORDER BY (total_realized + total_unrealized) DESC) AS user_rank,
-      ROW_NUMBER() OVER (ORDER BY (total_realized + total_unrealized) DESC) AS row_num
-  FROM user_profits;
+      realized_gains,
+      -- Window functions for leaderboard
+      ROW_NUMBER() OVER (ORDER BY realized_gains DESC) as row_number,
+      RANK() OVER (ORDER BY realized_gains DESC) as rank
+  FROM user_realized_gains -- This CTE calculates the gains
+  ORDER BY realized_gains DESC;
   ```
 
 **Script (2-3 minutes):**
@@ -630,7 +618,7 @@ Our **Automated Market Closure** system uses MySQL's Event Scheduler to automati
 
 For **Row-Level Locking**, our betting transaction sets the isolation level to SERIALIZABLE and uses a SELECT ... FOR UPDATE on the market row. This ensures that only one transaction can update a market's odds and volume at a time, preventing race conditions and guaranteeing fair, serialized updates. The lock is released immediately on commit, so no client can hold a market row indefinitely.
 
-Our **Leaderboard with Windowed Aggregates** uses advanced window functions to efficiently calculate user rankings and running totals. The implementation uses ROW_NUMBER() for unique rankings, RANK() for handling ties, and SUM() OVER (ORDER BY) for running totals, all in a single consolidated query that combines data from multiple tables.
+Our **Leaderboard with Windowed Aggregates** uses advanced window functions to efficiently calculate user rankings. The implementation first uses a series of CTEs to calculate realized gains, and then uses `RANK()` and `ROW_NUMBER()` over that result set to assign ranks, all in a single, consolidated query.
 
 Additionally, we've implemented **Sophisticated Odds Calculation** with anti-manipulation features. Our system uses a smoothing factor algorithm to prevent extreme odds, enforces bounds between 0.01 and 0.99, and implements user-specific odds that exclude a user's own volume to prevent self-manipulation. The volume distribution logic properly models prediction market mechanics, where selling NO is equivalent to buying YES and selling YES is equivalent to buying NO, ensuring accurate odds calculation. This creates a fair and stable prediction market.
 

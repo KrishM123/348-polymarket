@@ -309,22 +309,22 @@
 ### **Slide 17: Advanced Feature 5 - Leaderboard**
 
 *   **Feature:** A global leaderboard ranking all users by total profit.
-*   **Approach (for presentation):** Using **modern, set-based analytical functions**.
+*   **Approach:** Using **modern, set-based analytical functions (Window Functions)**.
 *   **How it Works:**
-    1.  A CTE first calculates each user's total realized and unrealized gains.
-    2.  A `RANK()` window function is then used to assign a rank to each user based on their total profit, without needing procedural logic.
-*   **SQL Snippet:** (Illustrative example for presentation)
+    1.  A series of CTEs first calculates each user's total realized gains from their betting history.
+    2.  The final `SELECT` statement then uses `RANK()` and `ROW_NUMBER()` to assign a rank to each user based on their profit, all calculated directly within the database.
+*   **SQL Snippet:** (`backend/sql/bets/get_user_profits.sql`)
     ```sql
-    SELECT
+    -- The final SELECT statement of the query
+    SELECT 
+        uid,
         uname,
-        total_profit,
-        RANK() OVER (ORDER BY total_profit DESC) AS user_rank
-    FROM (
-        -- Inner query calculates total profit per user
-        SELECT u.uname, SUM(b.amt * ...) AS total_profit
-        FROM users u JOIN bets b ON u.uid = b.uId ...
-        GROUP BY u.uname
-    ) AS user_profits;
+        realized_gains,
+        -- Window functions for leaderboard
+        ROW_NUMBER() OVER (ORDER BY realized_gains DESC) as row_number,
+        RANK() OVER (ORDER BY realized_gains DESC) as rank
+    FROM user_realized_gains -- This CTE calculates the gains
+    ORDER BY realized_gains DESC;
     ```
 
 ---
