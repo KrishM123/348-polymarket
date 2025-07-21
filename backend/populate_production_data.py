@@ -5,7 +5,6 @@ Builds upon seed_database.py to create a rich, realistic dataset
 while keeping the existing market data from the Polymarket API
 """
 
-import requests
 import mysql.connector
 from mysql.connector import Error
 import json
@@ -44,10 +43,6 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
-
-def fetch_polymarket_markets():
-    from seed_database import fetch_polymarket_markets
-    return fetch_polymarket_markets()
 
 def create_production_users(connection, num_users: int = 100) -> List[int]:
     cursor = connection.cursor()
@@ -350,6 +345,33 @@ def create_production_comments(connection, user_ids: List[int], market_ids: List
     
     cursor.close()
 
+def create_markets_from_csv(connection, market_names: List[str]) -> List[int]:
+    """Create markets from a list of names from a CSV file."""
+    cursor = connection.cursor()
+    market_ids = []
+    
+    for name in tqdm(market_names, desc="Creating markets from CSV"):
+        try:
+            description = f"Market for '{name}'."
+            volume = round(random.uniform(1.0, 10.0), 2)
+            odds = 0.50
+            end_date = datetime.now() + timedelta(days=random.randint(30, 90))
+            
+            cursor.execute(
+                "INSERT INTO markets (name, description, podd, volume, end_date) VALUES (%s, %s, %s, %s, %s)",
+                (name, description, odds, volume, end_date)
+            )
+            
+            market_ids.append(cursor.lastrowid)
+        
+        except Error as e:
+            print(f"Error creating market from CSV: {e}")
+            connection.rollback()
+    
+    connection.commit()
+    cursor.close()
+    return market_ids
+
 def main():
     start_time = time.time()
     print("Starting production data generation...")
@@ -359,10 +381,11 @@ def main():
         return
     
     try:
-        markets_data = fetch_polymarket_markets()
-        
-        from seed_database import create_markets_from_api
-        market_ids = create_markets_from_api(connection, markets_data)
+        # Read market names from production_data.csv
+        with open('production_data.csv', 'r') as f:
+            market_names = [line.strip() for line in f.readlines()[1:]] # Skip header
+
+        market_ids = create_markets_from_csv(connection, market_names)
         
         if not market_ids:
             raise Exception("No markets were created. Cannot proceed.")
