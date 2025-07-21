@@ -317,7 +317,8 @@ def get_markets():
     
     try:
         cursor = connection.cursor(dictionary=True)
-        execute_timed_query(cursor, 'markets.get_all_markets')
+        # Modified to fetch only active markets (volume > 0)
+        execute_timed_query(cursor, 'markets.get_active_markets')
         
         markets = cursor.fetchall()
         
@@ -361,6 +362,7 @@ def get_trending_markets():
     
     try:
         cursor = connection.cursor(dictionary=True)
+        # This can remain as is, assuming trending logic inherently filters out old markets
         execute_timed_query(cursor, 'markets.get_trending_markets')
         
         markets = cursor.fetchall()
@@ -588,11 +590,11 @@ def create_bet(market_id):
             # After inserting the bet, update the market's podd
             execute_timed_query(cursor, 'bets.get_all_market_bets', (market_id,))
             all_bets = cursor.fetchall()
-            
+
             yes_volume = sum(b['amt'] for b in all_bets if b['yes'])
             no_volume = sum(b['amt'] for b in all_bets if not b['yes'])
             total_volume = yes_volume + no_volume
-            
+
             if total_volume > 0:
                 new_podd = yes_volume / total_volume
                 execute_timed_query(cursor, 'markets.update_market_podd', (new_podd, market_id))
@@ -992,4 +994,4 @@ def get_query_stats():
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    app.run(debug=debug_mode, host='0.0.0.0', port=5000) 
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)
