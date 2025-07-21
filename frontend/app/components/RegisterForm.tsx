@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { authAPI } from "../../lib/auth";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   onOpenChange,
   onSwitchToLogin,
 }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -31,7 +33,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
     phoneNumber: "",
   });
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,15 +45,16 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
     setIsLoading(true);
 
     try {
       await authAPI.register(formData);
-      setSuccess("Registration successful! You can now login.");
-      setTimeout(() => {
-        onSwitchToLogin();
-      }, 2000);
+      const loginResponse = await authAPI.login({
+        username: formData.username,
+        password: formData.password,
+      });
+      login(loginResponse.user, loginResponse.token);
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -70,7 +72,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         phoneNumber: "",
       });
       setError("");
-      setSuccess("");
     }
     onOpenChange(newOpen);
   };
@@ -88,12 +89,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
             {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
-            {success}
           </div>
         )}
 
