@@ -1,0 +1,1 @@
+SELECT amt, yes FROM bets WHERE mId = %s;

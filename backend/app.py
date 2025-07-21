@@ -585,6 +585,18 @@ def create_bet(market_id):
             
             bet_id = cursor.lastrowid
             
+            # After inserting the bet, update the market's podd
+            execute_timed_query(cursor, 'bets.get_all_market_bets', (market_id,))
+            all_bets = cursor.fetchall()
+            
+            yes_volume = sum(b['amt'] for b in all_bets if b['yes'])
+            no_volume = sum(b['amt'] for b in all_bets if not b['yes'])
+            total_volume = yes_volume + no_volume
+            
+            if total_volume > 0:
+                new_podd = yes_volume / total_volume
+                execute_timed_query(cursor, 'markets.update_market_podd', (new_podd, market_id))
+
             connection.commit() # commit the transaction
             cursor.close()
             connection.close()
