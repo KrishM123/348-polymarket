@@ -509,7 +509,7 @@ def create_bet(market_id):
         amount = float(data['amount'])
         prediction = bool(data['prediction'])  # True for YES, False for NO
                 
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
         execute_timed_query(cursor, 'transactions.set_serializable_isolation')
         
         # Check if market exists and is still active
@@ -524,7 +524,7 @@ def create_bet(market_id):
         # Calculate odds excluding the current user's bets to prevent manipulation
         current_odds = get_user_market_odds(market_id, user_id, cursor)
         
-        # Check if user exists and has sufficient balance
+        # Check if user exists
         execute_timed_query(cursor, 'bets.get_user_balance', (user_id,))
         user = cursor.fetchone()
         if not user:
@@ -533,11 +533,48 @@ def create_bet(market_id):
             connection.close()
             return jsonify({'error': 'User not found'}), 404
         
-        if user[1] < amount:
-            connection.rollback()
-            cursor.close()
-            connection.close()
-            return jsonify({'error': 'Insufficient balance'}), 400
+        # Handle balance validation based on whether this is a buy or sell
+        if amount > 0:
+            # BUY: Check if user has sufficient balance
+            if user['balance'] < amount:
+                connection.rollback()
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Insufficient balance'}), 400
+        else:
+            # SELL: Check if user has sufficient holdings to sell
+            execute_timed_query(cursor, 'bets.get_user_holdings', (user_id,))
+            holdings = cursor.fetchall()
+            
+            # Find the specific holding for this market and prediction
+            target_holding = None
+            for holding in holdings:
+                if holding['mId'] == market_id and holding['yes'] == prediction:
+                    target_holding = holding
+                    break
+            
+            if not target_holding:
+                connection.rollback()
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'No holdings found for this market and prediction'}), 400
+            
+            # Check if user has enough current market value to sell
+            net_units = float(target_holding['net_units'])
+            is_yes = bool(target_holding['yes'])
+            
+            # Calculate current market value of the holding
+            if is_yes:
+                current_market_value = net_units * current_odds
+            else:
+                current_market_value = net_units * (1 - current_odds)
+            
+            # Check if the sell amount exceeds the current market value
+            if abs(amount) > current_market_value:
+                connection.rollback()
+                cursor.close()
+                connection.close()
+                return jsonify({'error': f'Insufficient holdings. Your current market value is ${current_market_value:.2f}, trying to sell ${abs(amount):.2f}'}), 400
         
         try:
             # Insert the bet using current market odds (trigger will handle balance and volume updates)
@@ -579,109 +616,7 @@ def create_bet(market_id):
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create bet'}), 500
 
-@app.route('/markets/<int:market_id>/sell', methods=['POST'])
-@token_required
-def sell_holdings(market_id):
-    """Sell holdings in a specific market"""
-    connection = get_db_connection()
-    connection.autocommit = False
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        # Get JSON data from request
-        data = request.get_json()
-        
-        # Get user ID from JWT token
-        user_id = request.current_user['user_id']
-        
-        # Validate required fields
-        required_fields = ['amount', 'prediction']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        amount = float(data['amount'])
-        prediction = bool(data['prediction'])  # True for YES, False for NO
-        
-        # Validate data ranges
-        if amount <= 0:
-            return jsonify({'error': 'Amount must be positive'}), 400
-        
-        cursor = connection.cursor(dictionary=True)
-        execute_timed_query(cursor, 'transactions.set_serializable_isolation')
-        
-        # Check if market exists and is still active
-        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
-        market_result = cursor.fetchone()
-        if not market_result:
-            connection.rollback()
-            cursor.close()
-            connection.close()
-            return jsonify({'error': 'Market not found or has ended'}), 404
-        
-        # Check if user has sufficient holdings to sell
-        execute_timed_query(cursor, 'bets.get_user_holdings', (user_id,))
-        holdings = cursor.fetchall()
-        
-        # Find the specific holding for this market and prediction
-        target_holding = None
-        for holding in holdings:
-            if holding['mId'] == market_id and holding['yes'] == prediction:
-                target_holding = holding
-                break
-        
-        if not target_holding:
-            connection.rollback()
-            cursor.close()
-            connection.close()
-            return jsonify({'error': 'No holdings found for this market and prediction'}), 400
-        
-        # Check if user has enough units to sell
-        net_units = float(target_holding['net_units'])
-        units_to_sell = amount / float(target_holding['avg_buy_price_per_unit'])
-        
-        if units_to_sell > net_units:
-            connection.rollback()
-            cursor.close()
-            connection.close()
-            return jsonify({'error': f'Insufficient holdings. You have {net_units:.2f} units, trying to sell {units_to_sell:.2f} units'}), 400
-        
-        # Calculate current odds excluding the user's bets to prevent manipulation
-        current_odds = get_user_market_odds(market_id, user_id, cursor)
-        
-        # Insert a negative amount bet to sell holdings
-        execute_timed_query(cursor, 'bets.insert_bet', (user_id, market_id, current_odds, -amount, prediction))
-        
-        sell_bet_id = cursor.lastrowid
-        
-        connection.commit()
-        cursor.close()
-        connection.close()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Holdings sold successfully',
-            'sell_bet_id': sell_bet_id,
-            'market_id': market_id,
-            'user_id': user_id,
-            'amount': amount,
-            'odds_at_sell': current_odds,
-            'prediction': prediction,
-            'units_sold': units_to_sell
-        }), 201
-        
-    except (ValueError, TypeError) as e:
-        connection.rollback()
-        cursor.close()
-        connection.close()
-        return jsonify({'error': 'Invalid data format'}), 400
-    except Error as e:
-        connection.rollback()
-        cursor.close()
-        connection.close()
-        print(f"Database error: {e}")
-        return jsonify({'error': 'Failed to sell holdings'}), 500
+
 
 @app.route('/markets/<int:market_id>/comments', methods=['GET'])
 def get_market_comments(market_id):

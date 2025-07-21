@@ -17,8 +17,15 @@ WITH user_market_holdings AS (
         SUM(CASE WHEN b.amt > 0 THEN b.amt / b.podd ELSE 0 END) - 
         SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) / b.podd ELSE 0 END) as net_units,
         
-        -- Calculate total amount invested (positive amounts only)
-        SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END) as total_invested,
+        -- Calculate cost basis of remaining units (total cost of bought units - cost basis of sold units)
+        CASE 
+            WHEN SUM(CASE WHEN b.amt > 0 THEN b.amt / b.podd ELSE 0 END) > 0 
+            THEN 
+                SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END) - 
+                (SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) / b.podd ELSE 0 END) * 
+                 (SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END) / SUM(CASE WHEN b.amt > 0 THEN b.amt / b.podd ELSE 0 END)))
+            ELSE 0 
+        END as total_invested,
         
         -- Calculate average buying price per unit
         CASE 
