@@ -6,6 +6,7 @@ import { User, tokenStorage } from "../../lib/auth";
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  loading: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
   updateUserBalance: (newBalance: number) => void;
@@ -26,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = tokenStorage.getToken();
@@ -35,6 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(savedUser);
       setIsAuthenticated(true);
     }
+    setLoading(false);
   }, []);
 
   const login = (userData: User, token: string) => {
@@ -61,7 +64,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, login, logout, updateUserBalance }}
+      value={{
+        user,
+        isAuthenticated,
+        loading,
+        login,
+        logout,
+        updateUserBalance,
+      }}
     >
       {children}
     </AuthContext.Provider>

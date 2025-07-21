@@ -65,9 +65,35 @@ export interface CommentsResponse {
   count: number;
 }
 
+export interface UserProfit {
+  uid: number;
+  uname: string;
+  current_balance: number;
+  realized_gains: number;
+  unrealized_gains: number;
+  total_profits: number;
+  percent_change: number;
+}
+
+export interface UserProfitsResponse {
+  success: boolean;
+  users: UserProfit[];
+}
+
 export const marketsAPI = {
   getMarkets: async (): Promise<MarketsResponse> => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets`);
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/markets`, {
+      headers,
+    });
 
     if (!response.ok) {
       const error = await response.json();
@@ -80,8 +106,18 @@ export const marketsAPI = {
   getMarket: async (
     marketId: number
   ): Promise<{ success: boolean; market: Market }> => {
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}`
+      `${process.env.NEXT_PUBLIC_API_URL}/markets/${marketId}`,
+      { headers }
     );
 
     if (!response.ok) {
@@ -188,12 +224,33 @@ export const marketsAPI = {
   },
 
   async getTrendingMarkets(): Promise<MarketsResponse> {
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/markets/trending`
+      `${process.env.NEXT_PUBLIC_API_URL}/markets/trending`,
+      { headers }
     );
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to fetch trending markets");
+    }
+    return response.json();
+  },
+
+  async getUserProfits(): Promise<UserProfitsResponse> {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user-profits`
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch user profits");
     }
     return response.json();
   },

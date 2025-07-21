@@ -65,23 +65,38 @@ def get_db_connection():
         print(f"Error connecting to MySQL: {e}")
         return None
 
-def calculate_market_odds(market_id, cursor):
+def calculate_market_odds(market_id, cursor, exclude_user_id=None):
     """
     Calculate market odds based on current volume distribution.
     This implements a proper prediction market mechanism where:
     - Odds reflect the current market sentiment based on volume distribution
     - More volume on YES side = higher probability for YES outcome
     - More volume on NO side = lower probability for YES outcome
+    - If exclude_user_id is provided, that user's bets are excluded from calculation
     
+    Args:
+        market_id: The market ID to calculate odds for
+        cursor: Database cursor
+        exclude_user_id: Optional user ID whose bets should be excluded from calculation
+        
     Returns the probability (0.01 to 0.99) for YES outcome.
     """
     try:
         # Get total volume on YES and NO sides
-        execute_timed_query(cursor, 'markets.get_market_volume_distribution', (market_id,))
+        if exclude_user_id is not None:
+            execute_timed_query(cursor, 'markets.get_market_volume_distribution_excluding_user', (market_id, exclude_user_id))
+        else:
+            execute_timed_query(cursor, 'markets.get_market_volume_distribution', (market_id,))
         
         result = cursor.fetchone()
-        yes_volume = float(result[0]) if result[0] else 0.0
-        no_volume = float(result[1]) if result[1] else 0.0
+        
+        # Handle both dictionary and tuple results
+        if isinstance(result, dict):
+            yes_volume = float(result['yes_volume']) if result['yes_volume'] else 0.0
+            no_volume = float(result['no_volume']) if result['no_volume'] else 0.0
+        else:
+            yes_volume = float(result[0]) if result[0] else 0.0
+            no_volume = float(result[1]) if result[1] else 0.0
         
         total_volume = yes_volume + no_volume
         
@@ -102,6 +117,58 @@ def calculate_market_odds(market_id, cursor):
     except Error as e:
         print(f"Error calculating market odds: {e}")
         return 0.50
+
+def get_user_market_odds(market_id, user_id, cursor):
+    """
+    Get market odds calculated excluding a specific user's volume.
+    This should be used whenever user-specific odds are needed (betting, selling, calculating gains).
+    
+    Args:
+        market_id: The market ID
+        user_id: The user ID whose volume should be excluded
+        cursor: Database cursor
+        
+    Returns the probability (0.01 to 0.99) for YES outcome.
+    """
+    return calculate_market_odds(market_id, cursor, exclude_user_id=user_id)
+
+def get_display_market_odds(market_id, cursor):
+    """
+    Get market odds for display purposes (including all users).
+    This should be used for market listings and general display.
+    
+    Args:
+        market_id: The market ID
+        cursor: Database cursor
+        
+    Returns the probability (0.01 to 0.99) for YES outcome.
+    """
+    return calculate_market_odds(market_id, cursor)
+
+def get_user_from_token():
+    """
+    Extract user information from the Authorization header if present.
+    Returns user_id if valid token is provided, None otherwise.
+    """
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+
+    # Accept both "Bearer <token>" and raw token
+    parts = auth_header.split()
+    token = parts[1] if len(parts) == 2 and parts[0].lower() == 'bearer' else parts[0]
+
+    if not token:
+        return None
+
+    try:
+        # Decode the token
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        return payload.get('user_id')
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # Authentication decorator
 def token_required(f):
@@ -253,11 +320,22 @@ def get_markets():
         
         markets = cursor.fetchall()
         
-        # Convert datetime objects to strings for JSON serialization
+        # Get user ID if logged in
+        user_id = get_user_from_token()
+        
+        # Convert datetime objects to strings for JSON serialization and calculate dynamic odds
         for market in markets:
             if market['end_date']:
                 market['end_date'] = market['end_date'].isoformat()
-            market['podd'] = float(market['podd'])
+            
+            # Calculate odds dynamically based on user login status
+            if user_id:
+                # Logged in user: exclude their own volume
+                market['podd'] = get_user_market_odds(market['mid'], user_id, cursor)
+            else:
+                # Logged out user: include all volume
+                market['podd'] = get_display_market_odds(market['mid'], cursor)
+            
             market['volume'] = float(market['volume'])
         
         cursor.close()
@@ -286,10 +364,21 @@ def get_trending_markets():
         
         markets = cursor.fetchall()
         
+        # Get user ID if logged in
+        user_id = get_user_from_token()
+        
         for market in markets:
             if market['end_date']:
                 market['end_date'] = market['end_date'].isoformat()
-            market['podd'] = float(market['podd'])
+            
+            # Calculate odds dynamically based on user login status
+            if user_id:
+                # Logged in user: exclude their own volume
+                market['podd'] = get_user_market_odds(market['mid'], user_id, cursor)
+            else:
+                # Logged out user: include all volume
+                market['podd'] = get_display_market_odds(market['mid'], cursor)
+            
             market['volume'] = float(market['volume'])
         
         cursor.close()
@@ -324,8 +413,18 @@ def get_market(market_id):
             connection.close()
             return jsonify({'error': 'Market not found'}), 404
         
+        # Get user ID if logged in
+        user_id = get_user_from_token()
+        
+        # Calculate odds dynamically based on user login status
+        if user_id:
+            # Logged in user: exclude their own volume
+            market['podd'] = get_user_market_odds(market_id, user_id, cursor)
+        else:
+            # Logged out user: include all volume
+            market['podd'] = get_display_market_odds(market_id, cursor)
+        
         # Convert data types for JSON serialization
-        market['podd'] = float(market['podd'])
         market['volume'] = float(market['volume'])
         if market['end_date']:
             market['end_date'] = market['end_date'].isoformat()
@@ -414,10 +513,10 @@ def create_bet(market_id):
             return jsonify({'error': 'Amount must be positive'}), 400
         
         cursor = connection.cursor()
-        cursor.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE") # set isolation level to serializable
+        execute_timed_query(cursor, 'transactions.set_serializable_isolation')
         
-        # Check if market exists and is still active, and get current odds
-        execute_timed_query(cursor, 'validation.check_market_active_for_update', (market_id,))
+        # Check if market exists and is still active
+        execute_timed_query(cursor, 'validation.check_market_active', (market_id,))
         market_result = cursor.fetchone()
         if not market_result:
             connection.rollback() # rollback the transaction
@@ -425,7 +524,8 @@ def create_bet(market_id):
             connection.close()
             return jsonify({'error': 'Market not found or has ended'}), 404
         
-        current_odds = float(market_result[1])
+        # Calculate odds excluding the current user's bets to prevent manipulation
+        current_odds = get_user_market_odds(market_id, user_id, cursor)
         
         # Check if user exists and has sufficient balance
         execute_timed_query(cursor, 'bets.get_user_balance', (user_id,))
@@ -443,20 +543,10 @@ def create_bet(market_id):
             return jsonify({'error': 'Insufficient balance'}), 400
         
         try:
-            # Insert the bet using current market odds
+            # Insert the bet using current market odds (trigger will handle balance and volume updates)
             execute_timed_query(cursor, 'bets.insert_bet', (user_id, market_id, current_odds, amount, prediction))
             
             bet_id = cursor.lastrowid
-            
-            # Update user balance
-            execute_timed_query(cursor, 'bets.update_user_balance', (amount, user_id))
-            
-            # Update market volume
-            execute_timed_query(cursor, 'markets.update_market_volume', (amount, market_id))
-            
-            # Recalculate and update market odds based on new volume distribution
-            new_odds = calculate_market_odds(market_id, cursor)
-            execute_timed_query(cursor, 'markets.update_market_odds', (new_odds, market_id))
             
             connection.commit() # commit the transaction
             cursor.close()
@@ -470,7 +560,6 @@ def create_bet(market_id):
                 'user_id': user_id,
                 'amount': amount,
                 'odds_at_bet': current_odds,
-                'new_market_odds': new_odds,
                 'prediction': prediction
             }), 201
             
@@ -520,18 +609,11 @@ def sell_bet(bet_id):
             connection.close()
             return jsonify({'error': 'You do not own this bet'}), 403
             
-        # Create a new bet with a minus amount to trigger the sell trigger which wupdates the user's balance and market state
-        execute_timed_query(
-            cursor, 
-            'bets.insert_bet',
-            (
-                bet_to_sell['uId'],
-                bet_to_sell['mId'],
-                bet_to_sell['podd'],
-                -bet_to_sell['amt'],  # Negative amount to show a sell
-                bet_to_sell['yes']
-            )
-        )
+        # Calculate current odds excluding the user's bets to prevent manipulation
+        current_odds = get_user_market_odds(bet_to_sell['mId'], user_id, cursor)
+        
+        # Insert a negative amount bet to trigger the unified bet handler
+        execute_timed_query(cursor, 'bets.insert_bet', (bet_to_sell['uId'], bet_to_sell['mId'], current_odds, -bet_to_sell['amt'], bet_to_sell['yes']))
         
         sold_bet_id = cursor.lastrowid
         
@@ -708,6 +790,155 @@ def create_reply(market_id, parent_id):
     except Error as e:
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to create reply'}), 500
+
+@app.route('/api/user-profits', methods=['GET'])
+def get_user_profits():
+    """Get all users sorted by their total profits (realized + unrealized gains)"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get all users with their basic info and realized gains
+        execute_timed_query(cursor, 'bets.get_user_profits')
+        results = cursor.fetchall()
+        
+        # For each user, calculate unrealized gains using current odds excluding their volume
+        for user in results:
+            user_id = user['uid']
+            
+            # Get all active bets for this user (both positive and negative amounts)
+            execute_timed_query(cursor, 'bets.get_user_bets', (user_id,))
+            user_bets = cursor.fetchall()
+            
+            unrealized_gains = 0.0
+            
+            for bet in user_bets:
+                market_id = bet['mId']
+                bet_amount = float(bet['amt'])
+                bet_odds = float(bet['podd'])
+                is_yes = bool(bet['yes'])
+                
+                # Calculate current odds excluding this user's volume
+                current_odds = get_user_market_odds(market_id, user_id, cursor)
+                
+                # Calculate unrealized gains using the new formula
+                if bet_amount > 0:  # Buy case
+                    # (bet_amnt / bet_podd) * cur_dynamic_podd
+                    unrealized_gains += (bet_amount / bet_odds) * current_odds
+                else:  # Sell case
+                    # (bet_amnt / (1-bet_podd)) * (1-cur_dynamic_podd)
+                    unrealized_gains += (abs(bet_amount) / (1 - bet_odds)) * (1 - current_odds)
+            
+            # Update user data
+            user['current_balance'] = float(user['current_balance'])
+            user['realized_gains'] = float(user['realized_gains'])
+            user['unrealized_gains'] = float(unrealized_gains)
+            user['total_profits'] = float(user['realized_gains']) + float(unrealized_gains)
+            
+            # Calculate percent change from initial balance
+            # For the new formula, we need to calculate the initial investment differently
+            total_investment = sum([float(bet['amt']) for bet in user_bets if float(bet['amt']) > 0])
+            if total_investment > 0:
+                user['percent_change'] = (user['total_profits'] / total_investment) * 100
+            else:
+                user['percent_change'] = 0.0
+        
+        # Sort by total profits
+        results.sort(key=lambda x: x['total_profits'], reverse=True)
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'users': results
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to get user profits'}), 500
+
+@app.route('/api/user-holdings', methods=['GET'])
+@token_required
+def get_user_holdings():
+    """Get current holdings for the authenticated user with unrealized gains"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        user_id = request.current_user['user_id']
+        
+        # Get user holdings with bet unit calculations
+        execute_timed_query(cursor, 'bets.get_user_holdings', (user_id,))
+        holdings = cursor.fetchall()
+        
+        # Calculate unrealized gains for each holding
+        for holding in holdings:
+            market_id = holding['mId']
+            net_units = float(holding['net_units'])
+            avg_buy_price = float(holding['avg_buy_price_per_unit'])
+            is_yes = bool(holding['yes'])
+            
+            # Calculate current odds excluding this user's volume
+            current_odds = get_user_market_odds(market_id, user_id, cursor)
+            
+            # Calculate unrealized gains for this holding
+            if is_yes:
+                # For YES holdings: net_units * current_odds - total_invested
+                unrealized_gains = (net_units * current_odds) - float(holding['total_invested'])
+            else:
+                # For NO holdings: net_units * (1-current_odds) - total_invested
+                unrealized_gains = (net_units * (1 - current_odds)) - float(holding['total_invested'])
+            
+            # Calculate current market value
+            if is_yes:
+                current_value = net_units * current_odds
+            else:
+                current_value = net_units * (1 - current_odds)
+            
+            # Calculate percent change
+            total_invested = float(holding['total_invested'])
+            if total_invested > 0:
+                percent_change = ((current_value - total_invested) / total_invested) * 100
+            else:
+                percent_change = 0.0
+            
+            # Update holding data
+            holding['unrealized_gains'] = float(unrealized_gains)
+            holding['current_value'] = float(current_value)
+            holding['percent_change'] = float(percent_change)
+            holding['current_odds'] = float(current_odds)
+            
+            # Convert numeric fields to float
+            holding['bought_units'] = float(holding['bought_units'])
+            holding['sold_units'] = float(holding['sold_units'])
+            holding['net_units'] = float(holding['net_units'])
+            holding['total_invested'] = float(holding['total_invested'])
+            holding['avg_buy_price_per_unit'] = float(holding['avg_buy_price_per_unit'])
+        
+        # Sort by unrealized gains (descending)
+        holdings.sort(key=lambda x: x['unrealized_gains'], reverse=True)
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'holdings': holdings,
+            'total_holdings': len(holdings),
+            'total_unrealized_gains': sum([h['unrealized_gains'] for h in holdings]),
+            'total_current_value': sum([h['current_value'] for h in holdings]),
+            'total_invested': sum([h['total_invested'] for h in holdings])
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to get user holdings'}), 500
 
 @app.route('/api/query-stats', methods=['GET'])
 def get_query_stats():

@@ -1,1 +1,1 @@
-SELECT mid, podd FROM markets WHERE mid = %s AND end_date > NOW() 
+SELECT mid, podd FROM markets WHERE mid = %s AND end_date > NOW() FOR UPDATE
