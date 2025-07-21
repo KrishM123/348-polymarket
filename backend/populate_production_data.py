@@ -21,7 +21,6 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 import time
 from sql_loader import SQLLoader
-import csv
 
 load_dotenv()
 
@@ -36,12 +35,6 @@ fake = faker.Faker()
 BATCH_SIZE = 100
 COMMIT_FREQUENCY = 1000
 sql_loader = SQLLoader()
-
-def load_local_market_names(csv_path: str = 'production_data.csv') -> List[str]:
-    with open(csv_path, newline='') as f:
-        reader = csv.DictReader(f)
-        return [row['MARKETS'] for row in reader]
-
 
 def get_db_connection():
     try:
@@ -185,10 +178,12 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
                 if market_id not in market_odds_map:
                     continue
                     
-                # initialize with 50-50 outcome
-                odds = 0.5
-                is_yes = (random.random() < odds)
-
+                market_odds = float(market_odds_map[market_id])
+                odds_variation = random.uniform(-0.05, 0.05)
+                odds = round(max(0.01, min(0.99, market_odds + odds_variation)), 2)
+                
+                is_yes = random.random() < odds
+                
                 bets_data.append((user_id, market_id, odds, amount, is_yes))
                 user_total_bets += amount
             
@@ -334,12 +329,6 @@ def main():
         
         from seed_database import create_markets_from_api
         market_ids = create_markets_from_api(connection, markets_data)
-        market_names = load_local_market_names('production_data.csv')
-        from seed_database import create_markets_from_api
-        market_ids = create_markets_from_api(
-           connection,
-          [{'name': name} for name in market_names]
-        )
         
         if not market_ids:
             raise Exception("No markets were created. Cannot proceed.")
