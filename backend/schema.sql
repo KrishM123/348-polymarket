@@ -71,3 +71,26 @@ CREATE INDEX idx_bets_mId ON bets(mId);
 -- Composite indexes for common query patterns
 CREATE INDEX idx_comments_user_market ON comments(uId, mId);
 CREATE INDEX idx_comments_mId ON comments(mId);
+
+-- Stored procedure: Checks for expired markets once a day
+-- Archives market and performs payouts if outdated
+DELIMITER $$
+CREATE PROCEDURE end_markets()
+BEGIN
+  UPDATE markets
+  -----------------------------------------
+  ---------- DO PAYOUT LOGIC HERE ---------
+  -----------------------------------------
+  WHERE volume NOT EQUALS 0
+  AND end_date <= NOW();
+END $$
+
+-- Check for archived markets every minute
+DELIMITER ;
+CREATE EVENT IF NOT EXISTS end_market
+  ON SCHEDULE
+    EVERY 1 MINUTE
+    STARTS CURRENT_TIMESTAMP
+  ON COMPLETION PRESERVE
+DO
+  CALL end_markets();
