@@ -2,7 +2,13 @@
 
 import { useAuth } from "./contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Calendar, Loader2, TrendingUp, Trophy } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  Loader2,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { marketsAPI, Market } from "../lib/markets";
 import MarketCard from "./components/MarketCard";
@@ -15,7 +21,7 @@ type TabMode = "markets" | "leaderboard";
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [markets, setMarkets] = useState<Market[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("latest");
   const [tabMode, setTabMode] = useState<TabMode>("markets");
@@ -95,13 +101,13 @@ export default function Home() {
         {/* Render content based on selected tab */}
         {tabMode === "markets" ? (
           <>
-            {!isAuthenticated && (
+            {!loading && !isAuthenticated && (
               <Alert className="mb-6">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Please login or create an account</AlertTitle>
                 <AlertDescription>
-                  You can browse markets, but you need to authenticate to place bets
-                  and participate in trades.
+                  You can browse markets, but you need to authenticate to place
+                  bets and participate in trades.
                 </AlertDescription>
               </Alert>
             )}
@@ -123,7 +129,9 @@ export default function Home() {
 
             {!loading && !error && markets.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-500">No markets available at the moment.</p>
+                <p className="text-gray-500">
+                  No markets available at the moment.
+                </p>
               </div>
             )}
 

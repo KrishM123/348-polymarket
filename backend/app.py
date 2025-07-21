@@ -40,7 +40,8 @@ app = Flask(__name__)
 CORS(app, resources={
     r"/auth/*": {"origins": "http://localhost:3000"},
     r"/markets/*": {"origins": "http://localhost:3000"},
-    r"/api/*": {"origins": "http://localhost:3000"}
+    r"/api/*": {"origins": "http://localhost:3000"},
+    r"/bets/*": {"origins": "http://localhost:3000"},
 })
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
@@ -507,11 +508,7 @@ def create_bet(market_id):
         
         amount = float(data['amount'])
         prediction = bool(data['prediction'])  # True for YES, False for NO
-        
-        # Validate data ranges
-        if amount <= 0:
-            return jsonify({'error': 'Amount must be positive'}), 400
-        
+                
         cursor = connection.cursor()
         execute_timed_query(cursor, 'transactions.set_serializable_isolation')
         

@@ -8,39 +8,39 @@ import {
   TrendingUp,
   AlertCircle,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import UserBets from "@/app/components/UserBets";
-import { usersAPI, UserBet } from "@/lib/users";
+import { usersAPI, UserHolding, UserProfit } from "@/lib/users";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
-  const [bets, setBets] = useState<UserBet[]>([]);
-  const [betsLoading, setBetsLoading] = useState(true);
+  const [holdings, setHoldings] = useState<UserHolding[]>([]);
+  const [profileData, setProfileData] = useState<UserProfit | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const fetchBets = async () => {
+  const fetchProfileData = async () => {
     if (!user) return;
     try {
-      setBetsLoading(true);
-      const response = await usersAPI.getUserBets(user.id);
-      setBets(response.bets);
+      setDataLoading(true);
+      const [holdingsRes, profitsRes] = await Promise.all([
+        usersAPI.getUserHoldings(),
+        usersAPI.getUserProfits(),
+      ]);
+      setHoldings(holdingsRes.holdings);
+      const userProfit = profitsRes.users.find((p) => p.uid === user.id);
+      setProfileData(userProfit || null);
     } catch (err) {
       console.error(err);
     } finally {
-      setBetsLoading(false);
+      setDataLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchBets();
+    fetchProfileData();
   }, [user]);
 
   if (loading) {
@@ -102,10 +102,10 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {betsLoading ? (
+                  {dataLoading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    bets.length
+                    holdings.length
                   )}
                 </div>
               </CardContent>
@@ -117,11 +117,23 @@ export default function ProfilePage() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$0.00</div>
+                <div className="text-2xl font-bold">
+                  {dataLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : profileData ? (
+                    `$${profileData.total_profits.toFixed(2)}`
+                  ) : (
+                    "$0.00"
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
-          <UserBets bets={bets} loading={betsLoading} onBetSold={fetchBets} />
+          <UserBets
+            holdings={holdings}
+            loading={dataLoading}
+            onBetSold={fetchProfileData}
+          />
         </>
       )}
     </div>

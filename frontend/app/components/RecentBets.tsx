@@ -59,7 +59,8 @@ export default function RecentBets({ marketId }: { marketId: number }) {
         </div>
       ) : (
         <div>
-          <div className="grid grid-cols-[70px_1fr_1fr_1fr_1fr_1fr] gap-4 p-4 border-gray-200 bg-gray-50 rounded-lg text-xs font-medium text-gray-600">
+          <div className="grid grid-cols-[60px_70px_1fr_1fr_1fr_1fr_1fr] gap-4 p-4 border-gray-200 bg-gray-50 rounded-lg text-xs font-medium text-gray-600">
+            <div>Type</div>
             <div>Prediction</div>
             <div>User</div>
             <div>Date</div>
@@ -70,16 +71,32 @@ export default function RecentBets({ marketId }: { marketId: number }) {
 
           {/* Bet Items */}
           {bets.map((bet) => {
-            // Calculate potential win
-            const potentialWin = bet.yes
-              ? ((1 - bet.podd) / bet.podd) * bet.amt
-              : (bet.podd / (1 - bet.podd)) * bet.amt;
+            const isBuy = bet.amt > 0;
+            const amount = Math.abs(bet.amt);
+
+            // Calculate potential win only for buys
+            const potentialWin = isBuy
+              ? bet.yes
+                ? ((1 - bet.podd) / bet.podd) * amount
+                : (bet.podd / (1 - bet.podd)) * amount
+              : 0;
 
             return (
               <div
                 key={bet.bId}
-                className="grid grid-cols-[70px_1fr_1fr_1fr_1fr_1fr] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors"
+                className="grid grid-cols-[60px_70px_1fr_1fr_1fr_1fr_1fr] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors"
               >
+                <div>
+                  <div
+                    className={`inline-block px-3 py-1 rounded-md text-xs font-medium ${
+                      isBuy
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
+                  >
+                    {isBuy ? "BUY" : "SELL"}
+                  </div>
+                </div>
                 <div>
                   <div
                     className={`inline-block px-3 py-1 rounded-md text-xs font-medium ${
@@ -96,13 +113,17 @@ export default function RecentBets({ marketId }: { marketId: number }) {
                   {formatBetTime(bet.createdAt)}
                 </div>
                 <div className="font-semibold text-sm">
-                  ${bet.amt.toFixed(2)}
+                  ${amount.toFixed(2)}
                 </div>
                 <div className="font-semibold text-sm">
                   {Math.round(bet.podd * 100)}%
                 </div>
-                <div className="font-semibold text-sm text-green-600">
-                  ${potentialWin.toFixed(2)}
+                <div
+                  className={`font-semibold text-sm ${
+                    isBuy ? "text-green-600" : "text-gray-500"
+                  }`}
+                >
+                  {isBuy ? `$${potentialWin.toFixed(2)}` : "-"}
                 </div>
               </div>
             );
