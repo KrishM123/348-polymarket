@@ -200,24 +200,9 @@ def create_markets_from_api(connection, polymarket_data):
                          market.get('event_description', 
                          'Market data from Polymarket'))
             
-            # Extract real volume and odds from API data
-            volume = 0.0
+            # Set a small initial volume, which will be updated later based on bet activity
+            volume = round(random.uniform(1.0, 10.0), 2)
             odds = 0.50  # Default to 50/50
-            
-            # Handle volume from different API responses
-            volume_sources = [
-                market.get('volume', 0),
-                market.get('volumeNum', 0),
-                float(market.get('volume', '0')) if isinstance(market.get('volume'), str) else 0
-            ]
-            
-            for vol_source in volume_sources:
-                try:
-                    if vol_source and float(vol_source) > 0:
-                        volume = float(vol_source)
-                        break
-                except (ValueError, TypeError):
-                    continue
             
             # Calculate odds from outcome prices if available
             try:
@@ -262,10 +247,6 @@ def create_markets_from_api(connection, polymarket_data):
                         break
                     except (ValueError, AttributeError):
                         continue
-            
-            # Ensure minimum volume for realistic markets
-            if volume < 100:
-                volume = random.uniform(500, 5000)
             
             # Insert market into database
             cursor.execute("""

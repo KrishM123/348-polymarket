@@ -128,87 +128,121 @@ def create_production_bets(connection, user_ids: List[int], market_ids: List[int
         cursor.close()
         return
     
-    for i in tqdm(range(0, len(user_ids), BATCH_SIZE), desc="Creating bets"):
-        batch_users = user_ids[i:i + BATCH_SIZE]
-        
-        get_batch_balances_sql = "SELECT uid, balance FROM users WHERE uid IN ({})".format(
-            ','.join(['%s'] * len(batch_users))
-        )
-        cursor.execute(get_batch_balances_sql, batch_users)
-        user_balances = dict(cursor.fetchall())
-        
-        bets_data = []
-        balance_updates = []
-        
-        for user_id in batch_users:
-            if user_id not in user_balances:
-                continue
-                
-            balance = float(user_balances[user_id])
-            num_bets = int(np.random.normal(
-                loc=min(5, balance/100),
-                scale=2,
-                size=1
-            )[0])
-            num_bets = max(1, min(10, num_bets))
-            
-            user_total_bets = 0
-            for _ in range(num_bets):
-                if not market_ids:
-                    continue
-                    
-                market_id = random.choice(market_ids)
-                pattern = random.choices(
-                    patterns,
-                    weights=[p['frequency'] for p in patterns],
-                    k=1
-                )[0]
-                
-                max_bet = min(pattern['amt_range'][1], balance * 0.2)
-                min_bet = min(pattern['amt_range'][0], max_bet)
-                
-                if min_bet <= 0:
-                    continue
-                    
-                amount = round(random.uniform(min_bet, max_bet), 2)
-                
-                if amount > (balance - user_total_bets) or amount <= 0:
-                    continue
-                
-                if market_id not in market_odds_map:
-                    continue
-                    
-                market_odds = float(market_odds_map[market_id])
-                odds_variation = random.uniform(-0.05, 0.05)
-                odds = round(max(0.01, min(0.99, market_odds + odds_variation)), 2)
-                
-                is_yes = random.random() < odds
-                
-                bets_data.append((user_id, market_id, odds, amount, is_yes))
-                user_total_bets += amount
-            
-            if user_total_bets > 0:
-                balance_updates.append((user_total_bets, user_id))
-        
-        if bets_data:
-            try:
-                cursor.executemany(insert_bet_sql, bets_data)
-                connection.commit()
-            except Error as e:
-                print(f"Error inserting bets: {e}")
-                connection.rollback()
-                continue
-        
-        if balance_updates:
-            try:
-                cursor.executemany(update_balance_sql, balance_updates)
-                connection.commit()
-            except Error as e:
-                print(f"Error updating balances: {e}")
-                connection.rollback()
-                continue
+    # Track yes/no counts for each market to enforce distribution
+    market_bet_counts = {mid: {'yes': 0, 'no': 0} for mid in market_ids}
     
+    for i in tqdm(range(len(user_ids)), desc="Creating bets for users"):
+        user_id = user_ids[i]
+        
+        cursor.execute("SELECT balance FROM users WHERE uid = %s", (user_id,))
+        balance = float(cursor.fetchone()[0])
+        
+        num_bets = int(np.random.normal(loc=min(5, balance / 100), scale=2, size=1)[0])
+        num_bets = max(1, min(10, num_bets))
+        
+        user_total_bets = 0
+        
+        for _ in range(num_bets):
+            if not market_ids:
+                continue
+                
+            market_id = random.choice(market_ids)
+            pattern = random.choices(
+                patterns,
+                weights=[p['frequency'] for p in patterns],
+                k=1
+            )[0]
+            
+            max_bet = min(pattern['amt_range'][1], balance * 0.2)
+            min_bet = min(pattern['amt_range'][0], max_bet)
+            
+            if min_bet <= 0:
+                continue
+                
+            amount = round(random.uniform(min_bet, max_bet), 2)
+            
+            if amount > (balance - user_total_bets) or amount <= 0:
+                continue
+            
+            if market_id not in market_odds_map:
+                continue
+                
+            market_odds = float(market_odds_map[market_id])
+            odds_variation = random.uniform(-0.05, 0.05)
+            odds = round(max(0.01, min(0.99, market_odds + odds_variation)), 2)
+            
+            # Enforce 35/65 distribution
+            yes_count = market_bet_counts[market_id]['yes']
+            no_count = market_bet_counts[market_id]['no']
+            total_bets = yes_count + no_count
+            
+            if total_bets > 0:
+                yes_ratio = yes_count / total_bets
+                if yes_ratio > 0.65:
+                    is_yes = False
+                elif yes_ratio < 0.35:
+                    is_yes = True
+                else:
+                    is_yes = random.random() < odds
+            else:
+                is_yes = random.random() < odds
+            
+            if is_yes:
+                market_bet_counts[market_id]['yes'] += 1
+            else:
+                market_bet_counts[market_id]['no'] += 1
+            
+            try:
+                cursor.execute(insert_bet_sql, (user_id, market_id, odds, amount, is_yes))
+                user_total_bets += amount
+            except Error as e:
+                print(f"Error inserting bet: {e}")
+                connection.rollback()
+                continue
+        
+        if user_total_bets > 0:
+            try:
+                cursor.execute(update_balance_sql, (user_total_bets, user_id))
+            except Error as e:
+                print(f"Error updating balance: {e}")
+                connection.rollback()
+                continue
+        
+        if (i + 1) % COMMIT_FREQUENCY == 0:
+            connection.commit()
+    
+    connection.commit()
     cursor.close()
+
+def update_market_volumes(connection):
+    """Update market volumes based on the sum of bet amounts"""
+    cursor = connection.cursor()
+    
+    try:
+        # Calculate total bet volume for each market
+        volume_query = """
+            SELECT m.mid, SUM(b.amt) 
+            FROM markets m
+            JOIN bets b ON m.mid = b.mid
+            GROUP BY m.mid
+        """
+        cursor.execute(volume_query)
+        market_volumes = cursor.fetchall()
+        
+        # Update volume for each market
+        update_volume_query = "UPDATE markets SET volume = %s WHERE mid = %s"
+        
+        for market_id, total_volume in tqdm(market_volumes, desc="Updating market volumes"):
+            cursor.execute(update_volume_query, (total_volume, market_id))
+        
+        connection.commit()
+        print(f"\nSuccessfully updated volumes for {len(market_volumes)} markets.")
+        
+    except Error as e:
+        print(f"Error updating market volumes: {e}")
+        connection.rollback()
+    finally:
+        cursor.close()
 
 def create_production_comments(connection, user_ids: List[int], market_ids: List[int]):
     cursor = connection.cursor()
@@ -339,6 +373,8 @@ def main():
         print(f"Created {len(user_ids)} users")
         
         create_production_bets(connection, user_ids, market_ids)
+        
+        update_market_volumes(connection)
         
         create_production_comments(connection, user_ids, market_ids)
         
