@@ -563,11 +563,14 @@ def create_bet(market_id):
             net_units = float(target_holding['net_units'])
             is_yes = bool(target_holding['yes'])
             
-            # Calculate current market value of the holding
+            # Calculate the correct unit price for YES and NO
             if is_yes:
-                current_market_value = net_units * current_odds
+                unit_price = current_odds
             else:
-                current_market_value = net_units * (1 - current_odds)
+                unit_price = 1 - current_odds
+            
+            # For NO, units are based on amt/(1-podd), so selling should check units * unit_price
+            current_market_value = net_units * unit_price
             
             # Check if the sell amount exceeds the current market value
             if abs(amount) > current_market_value:
@@ -928,6 +931,39 @@ def get_user_holdings():
     except Error as e:
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to get user holdings'}), 500
+
+@app.route('/api/user-balance', methods=['GET'])
+@token_required
+def get_user_balance():
+    """Get current balance for the authenticated user"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        user_id = request.current_user['user_id']
+        
+        # Get user balance
+        execute_timed_query(cursor, 'bets.get_user_balance', (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'balance': float(user['balance'])
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to get user balance'}), 500
 
 @app.route('/api/query-stats', methods=['GET'])
 def get_query_stats():

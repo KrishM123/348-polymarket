@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { UserHolding, usersAPI } from "@/lib/users";
+import { useAuth } from "@/app/contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ export default function UserBets({
   onBetSold,
   error,
 }: UserBetsProps) {
+  const { updateUserBalance } = useAuth();
   const [sellingHolding, setSellingHolding] = useState<UserHolding | null>(
     null
   );
@@ -45,7 +47,16 @@ export default function UserBets({
         amount: -sellAmount,
         prediction: holding.yes,
       });
-      onBetSold(); // Refresh the holdings list
+      
+      // Fetch updated balance and update AuthContext
+      try {
+        const balanceResponse = await usersAPI.getUserBalance();
+        updateUserBalance(balanceResponse.balance);
+      } catch (balanceErr) {
+        console.error("Failed to fetch updated balance:", balanceErr);
+      }
+      
+      onBetSold(); // Refresh the holdings list and profile data
       setSellAmounts((prev) => ({ ...prev, [key]: "" })); // Clear input
     } catch (err) {
       console.error("Failed to sell holding:", err);

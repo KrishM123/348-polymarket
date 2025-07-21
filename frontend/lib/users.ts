@@ -91,6 +91,28 @@ export const usersAPI = {
     return response.json();
   },
 
+  getUserBalance: async (): Promise<{ success: boolean; balance: number }> => {
+    const token = tokenStorage.getToken();
+    if (!token) {
+      throw new Error("Authentication required to fetch user balance");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/user-balance`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.error || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
+
   placeBet: async (
     marketId: number,
     betData: BetRequest

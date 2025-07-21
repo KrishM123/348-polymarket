@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { marketsAPI, Market, BetRequest } from "@/lib/markets";
+import { usersAPI } from "@/lib/users";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,9 +69,17 @@ export default function BettingForm({
 
       await marketsAPI.placeBet(market.mid, betData);
 
-      if (user) {
-        const newBalance = user.balance - parseFloat(betAmount);
-        updateUserBalance(newBalance);
+      // Fetch updated balance from server and update AuthContext
+      try {
+        const balanceResponse = await usersAPI.getUserBalance();
+        updateUserBalance(balanceResponse.balance);
+      } catch (balanceErr) {
+        console.error("Failed to fetch updated balance:", balanceErr);
+        // Fallback to manual calculation if API call fails
+        if (user) {
+          const newBalance = user.balance - parseFloat(betAmount);
+          updateUserBalance(newBalance);
+        }
       }
 
       setSelectedPrediction(null);

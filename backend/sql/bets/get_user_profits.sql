@@ -8,11 +8,15 @@ WITH user_market_stats AS (
         
         -- Calculate total amount bet and total number of bet units for buying (positive amounts)
         SUM(CASE WHEN b.amt > 0 THEN b.amt ELSE 0 END) as total_bought_amount,
-        SUM(CASE WHEN b.amt > 0 THEN b.amt / b.podd ELSE 0 END) as total_bought_units,
+        SUM(CASE WHEN b.amt > 0 AND b.yes = 1 THEN b.amt / b.podd
+                 WHEN b.amt > 0 AND b.yes = 0 THEN b.amt / (1 - b.podd)
+                 ELSE 0 END) as total_bought_units,
         
         -- Calculate total amount sold and total number of bet units for selling (negative amounts)
         SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) ELSE 0 END) as total_sold_amount,
-        SUM(CASE WHEN b.amt < 0 THEN ABS(b.amt) / b.podd ELSE 0 END) as total_sold_units
+        SUM(CASE WHEN b.amt < 0 AND b.yes = 1 THEN ABS(b.amt) / b.podd
+                 WHEN b.amt < 0 AND b.yes = 0 THEN ABS(b.amt) / (1 - b.podd)
+                 ELSE 0 END) as total_sold_units
         
     FROM users u
     LEFT JOIN bets b ON u.uid = b.uId
@@ -28,6 +32,9 @@ market_realized_gains AS (
         mId,
         yes,
         total_sold_units,
+        total_bought_units,
+        total_bought_amount,
+        total_sold_amount,
         
         -- Calculate realized gains: amount received from selling - cost basis of units sold
         CASE 
