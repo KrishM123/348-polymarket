@@ -464,6 +464,13 @@ Our application demonstrates not just technical competence, but a deep understan
 
 **Content:**
 
+**Our Approach to Advanced Features:**
+Before we dive into the specifics, it's important to understand our overall approach. We didn't just implement five random features; we intentionally chose a set of tasks that would demonstrate a broad mastery of sophisticated database engineering. The features you're about to see are validly complex because:
+1.  They utilize **fundamentally different database mechanisms**, from reactive triggers to time-based events to procedural cursors.
+2.  Our concurrency control is built on **explicit, application-managed transactions**, ensuring the financial-grade integrity required for a betting platform.
+
+Now, let's look at the features themselves.
+
 **Implemented Advanced Features:**
 
 **1. Sell Bet Logic with BEFORE INSERT Trigger ✅ IMPLEMENTED**
