@@ -29,10 +29,10 @@ market_realized_gains AS (
         yes,
         total_sold_units,
         
-        -- Calculate realized gains: (avg_sell_price - avg_buy_price) * units_sold
+        -- Calculate realized gains: amount received from selling - cost basis of units sold
         CASE 
             WHEN total_sold_units > 0 AND total_bought_units > 0 
-            THEN ((total_sold_amount / total_sold_units) - (total_bought_amount / total_bought_units)) * total_sold_units
+            THEN total_sold_amount - (total_sold_units * (total_bought_amount / total_bought_units))
             ELSE 0 
         END as market_realized_gains
         
