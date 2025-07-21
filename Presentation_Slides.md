@@ -62,7 +62,11 @@
 *   **SQL Complexity:**
     *   Uses `SELECT` queries with an index on `users(uname)` for fast, secure username lookup.
     *   Hashes passwords with `bcrypt` for secure storage and comparison.
-    *   Validates against existing usernames and emails before insertion.
+*   **SQL Snippet:** (`backend/sql/auth/get_user_by_username.sql`)
+    ```sql
+    SELECT uid, uname, email, passwordHash, balance 
+    FROM users WHERE uname = %s;
+    ```
 
 ---
 
@@ -73,10 +77,18 @@
     *   Displays a comprehensive list of all active betting markets.
     *   Each market card shows key info: name, description, probability, volume, and end date.
 *   **SQL Complexity:**
-    *   Dynamically calculates odds based on user status:
-        *   **Logged-in:** Excludes the user's own volume to prevent manipulation.
-        *   **Logged-out:** Shows the full market odds.
-    *   Uses a smoothing factor algorithm to ensure odds are stable and realistic (between 0.01 and 0.99).
+    *   Conditionally executes different SQL queries based on user login status to prevent manipulation.
+    *   The SQL provides the raw `yes_volume` and `no_volume`. The backend then applies a mathematical smoothing algorithm to calculate the final odds.
+*   **SQL Snippets:** (`get_market_volume_distribution...sql`)
+    ```sql
+    -- For logged-out users (full volume)
+    SELECT SUM(...) as yes_volume, SUM(...) as no_volume 
+    FROM bets WHERE mId = %s;
+
+    -- For logged-in users (volume excluding their own)
+    SELECT SUM(...) as yes_volume, SUM(...) as no_volume 
+    FROM bets WHERE mId = %s AND uId != %s;
+    ```
 
 ---
 
@@ -87,9 +99,24 @@
     *   Sophisticated betting interface with real-time potential profit calculation.
     *   Supports both buying shares (positive bet amount) and selling existing holdings (negative bet amount).
 *   **SQL Complexity:**
-    *   A transactional process that validates market status, checks user balance, and inserts the bet.
-    *   A `BEFORE INSERT` trigger automatically updates user balance and market volume.
-    *   Application layer validates sell orders against the user's current market value to prevent over-selling.
+    *   The betting process is wrapped in a transaction, managed by the application layer.
+    *   A `BEFORE INSERT` trigger on the `bets` table handles atomic updates to user balance and market volume.
+*   **SQL Snippet:** (`backend/sql/bets/bet_trigger.sql`)
+    ```sql
+    -- This trigger runs automatically before every bet is inserted
+    CREATE TRIGGER handleBetOnInsert
+    BEFORE INSERT ON bets
+    FOR EACH ROW
+    BEGIN
+        IF NEW.amt > 0 THEN -- Buy
+            UPDATE users SET balance = balance - NEW.amt ...;
+            UPDATE markets SET volume = volume + NEW.amt ...;
+        ELSEIF NEW.amt < 0 THEN -- Sell
+            UPDATE users SET balance = balance + ABS(NEW.amt) ...;
+            UPDATE markets SET volume = volume - ABS(NEW.amt) ...;
+        END IF;
+    END
+    ```
 
 ---
 
@@ -100,8 +127,23 @@
     *   Sophisticated, threaded commenting system on each market page.
     *   Supports unlimited nesting levels for rich discussions.
 *   **SQL Complexity:**
-    *   A `WITH RECURSIVE` Common Table Expression (CTE) efficiently fetches and reconstructs the entire comment hierarchy in a single query.
-    *   Optimized with indexes on `comments(mId)` for fast lookups.
+    *   A `WITH RECURSIVE` Common Table Expression (CTE) efficiently fetches and reconstructs the entire comment hierarchy in a single, powerful query.
+*   **SQL Snippet:** (`backend/sql/comments/get_threaded_comments.sql`)
+    ```sql
+    WITH RECURSIVE threaded_comments AS (
+        -- Base case: select top-level comments
+        SELECT c.cId, ..., 0 AS level FROM comments c ...
+        WHERE c.mId = %s AND c.cId NOT IN (SELECT cCId FROM isParentOf)
+    
+        UNION ALL
+    
+        -- Recursive case: join with self to fetch replies
+        SELECT child.cId, ..., tc.level + 1
+        FROM isParentOf ip JOIN comments child ON ...
+        JOIN threaded_comments tc ON tc.cId = ip.pCId
+    )
+    SELECT * FROM threaded_comments;
+    ```
 
 ---
 
@@ -112,8 +154,25 @@
     *   Comprehensive analytics dashboard for each user.
     *   Displays current balance, active holdings with unrealized gains, and a global leaderboard.
 *   **SQL Complexity:**
-    *   A sophisticated CTE calculates user holdings by tracking `bought_units`, `sold_units`, `net_units`, and `total_invested`.
-    *   Unrealized gains are calculated in real-time by comparing the user's average buy price to the current market odds.
+    *   A sophisticated CTE that aggregates all of a user's buy and sell transactions to calculate their exact holdings (`net_units`) and the average price they paid per share (`avg_buy_price_per_unit`).
+*   **SQL Snippet:** (`backend/sql/bets/get_user_holdings.sql`)
+    ```sql
+    WITH user_market_holdings AS (
+        SELECT 
+            b.uId, b.mId, b.yes,
+            -- Calculate total units bought
+            SUM(CASE WHEN b.amt > 0 THEN ... END) as bought_units,
+            -- Calculate total units sold
+            SUM(CASE WHEN b.amt < 0 THEN ... END) as sold_units,
+            -- Calculate net units (bought - sold)
+            (...) as net_units,
+            -- Calculate total amount invested for remaining units
+            (...) as total_invested
+        FROM bets b ...
+        GROUP BY b.uId, b.mId, b.yes
+    )
+    SELECT * FROM user_market_holdings WHERE net_units > 0;
+    ```
 
 ---
 
@@ -130,14 +189,20 @@
 
 ### **Slide 11: Backend Logic & Performance Optimizations**
 
-*   **Systematic Optimization Strategy:**
-    *   **Goal:** Ensure the platform is fast, scalable, and responsive.
-    *   **Method:** Applied strategic single-column and composite indexes to accelerate frequent query patterns (e.g., in `WHERE` clauses and `JOINs`).
-    *   **Verification:** Used a custom `QueryTimer` class to scientifically measure and prove the performance gains of each index.
-*   **Key Optimizations:**
-    *   `idx_users_uname`: Reduced login query time from ~10ms to <1ms.
-    *   `idx_bets_mId`: Dramatically accelerated odds calculation.
-    *   `idx_comments_mId`: Optimized the loading of discussion threads.
+*   **Our Indexing Strategy:**
+    *   **Goal:** To eliminate slow, full-table scans and ensure a scalable, high-speed application.
+    *   **Process:** We followed a four-step, data-driven process:
+        1.  **Identify** critical query bottlenecks (e.g., login, odds calculation).
+        2.  **Analyze** the queries to find the specific columns to optimize.
+        3.  **Apply** B-Tree indexes to those columns for high-speed lookups.
+        4.  **Verify** the impact using our custom `QueryTimer`, proving the performance gains.
+*   **A Clear Example: User Login**
+    *   **The Problem:** Finding one user in a table of 10,000+ is slow without an index.
+    *   **The Solution:** Applying a single-column index to the `uname` column.
+        ```sql
+        CREATE INDEX idx_users_uname ON users(uname);
+        ```
+    *   **The Result:** A 10x performance improvement, with query times dropping from ~10ms to under 1ms.
 
 ---
 
@@ -149,7 +214,18 @@
     1.  The application layer validates the sell order against the user's holdings.
     2.  An `INSERT` with a negative amount is sent.
     3.  A `BEFORE INSERT` trigger automatically updates the user's balance and the market's volume.
-*   **SQL Snippet:** `backend/sql/bets/bet_trigger.sql`
+*   **SQL Snippet:** (`backend/sql/bets/bet_trigger.sql`)
+    ```sql
+    CREATE TRIGGER handleBetOnInsert
+    BEFORE INSERT ON bets
+    FOR EACH ROW
+    BEGIN
+        -- This logic fires automatically on every insert
+        IF NEW.amt > 0 THEN ...
+        ELSEIF NEW.amt < 0 THEN ...
+        END IF;
+    END
+    ```
 
 ---
 
@@ -158,10 +234,24 @@
 *   **Feature:** A real-time market ranking system based on recent activity.
 *   **Approach:** A **declarative, set-based query** that aggregates data.
 *   **How it Works:**
-    1.  Combines bets and comments into a single activity stream.
+    1.  Combines bets and comments into a single activity stream using `UNION ALL`.
     2.  Applies different weights (bets are weighted more heavily than comments).
-    3.  Uses an exponential decay function to give more significance to recent activity.
-*   **SQL Snippet:** `backend/sql/markets/get_trending_markets.sql`
+    3.  Uses an exponential decay function (`EXP(-0.03 * TIMESTAMPDIFF(...)`) to give more significance to recent activity.
+*   **SQL Snippet:** (`backend/sql/markets/get_trending_markets.sql`)
+    ```sql
+    SELECT m.mid, m.name, ...
+    FROM markets m
+    LEFT JOIN (
+        SELECT mId, SUM(weight * EXP(...)) AS trending_score
+        FROM (
+            SELECT mId, ..., 1.0 AS weight FROM bets
+            UNION ALL
+            SELECT mId, ..., 0.5 AS weight FROM comments
+        ) AS activities
+        GROUP BY mId
+    ) AS activity_scores ON m.mid = activity_scores.mId
+    ORDER BY COALESCE(activity_scores.trending_score, 0) DESC;
+    ```
 
 ---
 
@@ -170,10 +260,25 @@
 *   **Feature:** A fully automated system for resolving markets and paying out winners.
 *   **Approach:** **Proactive, time-based automation** using a server scheduler and procedural logic.
 *   **How it Works:**
-    1.  A daily MySQL `EVENT` calls a stored procedure.
-    2.  The procedure uses a `CURSOR` to loop through all expired markets.
+    1.  A daily MySQL `EVENT` calls the `resolve_markets()` stored procedure.
+    2.  The procedure uses a `CURSOR` to loop through all expired markets (`WHERE end_date <= NOW()`).
     3.  For each market, it calculates the payout per winning share and distributes funds to users within a `TRANSACTION`.
-*   **SQL Snippet:** `backend/sql/procedures/resolve_markets_procedure.sql`
+*   **SQL Snippet:** (`backend/sql/procedures/resolve_markets_procedure.sql`)
+    ```sql
+    -- The core logic of the stored procedure
+    DECLARE cur_markets CURSOR FOR 
+        SELECT mid, podd FROM markets WHERE end_date <= NOW() AND volume > 0;
+    
+    OPEN cur_markets;
+    markets_loop: LOOP
+        FETCH cur_markets INTO market_id, market_podd;
+        -- ...
+        START TRANSACTION;
+        UPDATE users u JOIN bets b ON ... SET u.balance = u.balance + ...
+        COMMIT;
+        -- ...
+    END LOOP;
+    ```
 
 ---
 
@@ -182,10 +287,13 @@
 *   **Feature:** A system to prevent race conditions during betting.
 *   **Approach:** **Explicit, application-managed transactional control.**
 *   **How it Works:**
-    1.  The backend sets the transaction isolation level to `SERIALIZABLE`, the strictest level.
+    1.  The backend executes `SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;` at the start of the betting process.
     2.  This ensures that when a user places a bet, the relevant market row is locked until the transaction is complete (`commit` or `rollback`).
     3.  This guarantees fair, serialized updates and prevents data corruption.
-*   **SQL Snippet:** `backend/sql/transactions/set_serializable_isolation.sql`
+*   **SQL Snippet:** (`backend/sql/transactions/set_serializable_isolation.sql`)
+    ```sql
+    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    ```
 
 ---
 
@@ -195,8 +303,20 @@
 *   **Approach (for presentation):** Using **modern, set-based analytical functions**.
 *   **How it Works:**
     1.  A CTE first calculates each user's total realized and unrealized gains.
-    2.  A `RANK()` or `ROW_NUMBER()` window function is then used to assign a rank to each user based on their total profit, without needing procedural logic.
+    2.  A `RANK()` window function is then used to assign a rank to each user based on their total profit, without needing procedural logic.
 *   **SQL Snippet:** (Illustrative example for presentation)
+    ```sql
+    SELECT
+        uname,
+        total_profit,
+        RANK() OVER (ORDER BY total_profit DESC) AS user_rank
+    FROM (
+        -- Inner query calculates total profit per user
+        SELECT u.uname, SUM(b.amt * ...) AS total_profit
+        FROM users u JOIN bets b ON u.uid = b.uId ...
+        GROUP BY u.uname
+    ) AS user_profits;
+    ```
 
 ---
 

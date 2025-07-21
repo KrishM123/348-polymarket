@@ -334,42 +334,27 @@ Our application relies on a set of robust SQL queries to deliver its core functi
 ---
 
 **Performance Optimizations:**
-We took a systematic approach to performance, ensuring that our database could handle the demands of a real-time betting platform. Our primary strategy was the implementation of strategic indexing across all major query patterns.
+Our primary optimization strategy was the implementation of strategic indexing to eliminate slow, full-table scans and ensure our application could scale.
 
--   **General Strategy:** We identified the most frequently queried columns, especially those used in `WHERE` clauses and `JOIN` conditions, and created single-column and composite indexes to accelerate lookups. This allows the database engine to jump directly to the required data instead of performing costly full-table scans.
+-   **Our Process:** We followed a simple but powerful four-step process:
+    1.  **Identify Bottlenecks:** We identified the most frequent and critical database operations, like user logins, market filtering, and odds calculations.
+    2.  **Analyze Queries:** We analyzed the SQL for these operations to find the specific columns used in `WHERE` clauses and `JOINs`.
+    3.  **Apply Indexes:** We created B-Tree indexes on these columns. An index acts like a pre-sorted lookup table, allowing the database to instantly find the data it needs instead of scanning every row.
+    4.  **Verify the Impact:** We used our custom `QueryTimer` class to scientifically measure query times before and after adding the indexes, providing concrete proof of the performance gains.
 
--   **Verification Method:** To prove the effectiveness of our indexes, we implemented a custom `QueryTimer` class in Python (`backend/query_timer.py`). This class wraps every database execution, precisely measuring its duration. We recorded query times before and after applying indexes to quantify the performance gains.
-
-**Key Optimization Examples:**
-
--   **User Login (`idx_users_uname`):** An index on `users(uname)` dramatically speeds up the initial user lookup during login, reducing query time from ~10ms to under 1ms.
+-   **A Clear Example: User Login:** The most frequent operation is a user login. Without an index, finding a user in a table of 10,000+ users is slow. By adding a single-column index to the `uname` column, we gave the database a high-speed shortcut. Our `QueryTimer` showed this one change reduced login query times from ~10ms down to less than 1ms—a 10x improvement.
     ```sql
     CREATE INDEX idx_users_uname ON users(uname);
-    ```
-
--   **Market Filtering (`idx_markets_end_date`):** An index on `markets(end_date)` is crucial for quickly finding all active markets, a query that runs every time the main page is loaded.
-    ```sql
-    CREATE INDEX idx_markets_end_date ON markets(end_date);
-    ```
-    
--   **Odds Calculation (`idx_bets_mId`):** An index on `bets(mId)` is essential for rapidly calculating the odds for a specific market, as it involves summing up all bets for that market.
-    ```sql
-    CREATE INDEX idx_bets_mId ON bets(mId);
-    ```
-
--   **Comment Loading (`idx_comments_mId`, `idx_comments_user_market`):** We used both a single-column index on `comments(mId)` and a composite index on `comments(uId, mId)` to optimize loading comments for a market and for a specific user within that market, respectively.
-    ```sql
-    CREATE INDEX idx_comments_mId ON comments(mId);
     ```
 
 **Script (3-4 minutes):**
 "Let's dive deeper into the backend logic that powers these features. Our application is built on a foundation of robust, modular, and highly-optimized SQL queries.
 
-For our **core features**, we've designed specific queries to handle key functionalities. To display all active markets, we use a straightforward `SELECT` query that filters by the market's end date. For our threaded commenting system, we use a sophisticated `WITH RECURSIVE` query that builds the entire nested comment structure in a single, efficient database call. And to calculate a user's holdings, we use a complex CTE that aggregates all of their buy and sell transactions to provide a complete and accurate picture of their portfolio.
+For our **core features**, we've designed specific queries to handle key functionalities, from using `WITH RECURSIVE` to build our threaded comment sections to using complex CTEs to calculate user portfolio holdings.
 
-Beyond just functionality, **performance was a top priority**. We implemented a systematic optimization strategy centered around **strategic indexing**. We analyzed our most frequent query patterns and applied indexes to the key columns that were being filtered or joined on.
+Beyond just functionality, **performance was a top priority**. We took a systematic approach to optimization centered on **strategic indexing**. Our process was simple: we identified the slowest, most frequent queries, analyzed them to find the bottleneck columns, applied indexes, and then used our custom `QueryTimer` class to verify the impact.
 
-To validate our work, we built a custom `QueryTimer` class in Python. This tool allowed us to measure the exact execution time of every query, both before and after we added indexes. The results were dramatic. For example, indexing the `username` column reduced login query times from around 10 milliseconds to under one. Similarly, indexes on our `bets` and `comments` tables made calculating odds and loading discussions significantly faster. This data-driven approach ensures our application is not just functional, but also fast and scalable."
+The results were dramatic. Let's take one clear example: user login. Before optimization, finding a single user could take around 10 milliseconds as the database had to scan thousands of rows. After adding a single index on the username column, that time dropped to less than one millisecond—a 10x performance boost from one line of code. We applied this data-driven approach across our entire schema, ensuring our application is not just functional, but also fast and scalable."
 
 ## D4. The Contribution of Each Member
 
