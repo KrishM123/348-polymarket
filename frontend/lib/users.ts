@@ -26,6 +26,22 @@ interface GetUserHoldingsResponse {
   total_invested: number;
 }
 
+export interface UserBet {
+  bId: number;
+  mId: number;
+  market_name: string;
+  podd: number;
+  amt: number;
+  yes: boolean;
+  createdAt: string;
+}
+
+interface GetUserBetsResponse {
+  success: boolean;
+  bets: UserBet[];
+  count: number;
+}
+
 export interface BetRequest {
   amount: number;
   prediction: boolean;
@@ -135,6 +151,28 @@ export const usersAPI = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to place bet");
+    }
+
+    return response.json();
+  },
+
+  getUserBets: async (): Promise<GetUserBetsResponse> => {
+    const token = tokenStorage.getToken();
+    if (!token) {
+      throw new Error("Authentication required to fetch user bets");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/user-bets`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.error || `HTTP error! status: ${response.status}`
+      );
     }
 
     return response.json();
