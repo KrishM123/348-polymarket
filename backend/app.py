@@ -824,13 +824,15 @@ def get_user_profits():
                 # Calculate current odds excluding this user's volume
                 current_odds = get_user_market_odds(market_id, user_id, cursor)
                 
-                # Calculate unrealized gains using the new formula
+                # Calculate unrealized gains: current value - original bet amount
                 if bet_amount > 0:  # Buy case
-                    # (bet_amnt / bet_podd) * cur_dynamic_podd
-                    unrealized_gains += (bet_amount / bet_odds) * current_odds
+                    # Current value of bet units minus original bet amount
+                    current_value = (bet_amount / bet_odds) * current_odds
+                    unrealized_gains += current_value - bet_amount
                 else:  # Sell case
-                    # (bet_amnt / (1-bet_podd)) * (1-cur_dynamic_podd)
-                    unrealized_gains += (abs(bet_amount) / (1 - bet_odds)) * (1 - current_odds)
+                    # Current value of bet units minus original bet amount
+                    current_value = (abs(bet_amount) / (1 - bet_odds)) * (1 - current_odds)
+                    unrealized_gains += current_value - abs(bet_amount)
             
             # Update user data
             user['current_balance'] = float(user['current_balance'])
