@@ -77,7 +77,7 @@ SELECT
     
 FROM user_market_holdings
 
--- Only return markets with remaining bet units
-WHERE net_units > 0
+-- Only return markets with meaningful remaining bet units (filter out dust positions)
+WHERE net_units > 0.01
 
 ORDER BY net_units DESC 

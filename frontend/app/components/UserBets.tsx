@@ -66,6 +66,37 @@ export default function UserBets({
     }
   };
 
+  const handleSellAll = async (holding: UserHolding) => {
+    const key = `${holding.mId}-${holding.yes}`;
+    
+    setSellingHolding(holding);
+    try {
+      // Sell the entire current market value to avoid precision issues
+      const sellAmount = holding.current_value;
+      
+      await usersAPI.placeBet(holding.mId, {
+        amount: -sellAmount,
+        prediction: holding.yes,
+      });
+
+      // Fetch updated balance and update AuthContext
+      try {
+        const balanceResponse = await usersAPI.getUserBalance();
+        updateUserBalance(balanceResponse.balance);
+      } catch (balanceErr) {
+        console.error("Failed to fetch updated balance:", balanceErr);
+      }
+
+      onBetSold(); // Refresh the holdings list and profile data
+      setSellAmounts((prev) => ({ ...prev, [key]: "" })); // Clear input
+    } catch (err) {
+      console.error("Failed to sell all holding:", err);
+      // Optionally, show an error message to the user
+    } finally {
+      setSellingHolding(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-6">
@@ -84,7 +115,7 @@ export default function UserBets({
     );
   }
 
-  if (holdings.filter((holding) => holding.current_value > 0.1).length === 0) {
+  if (holdings.filter((holding) => holding.current_value > 0.01).length === 0) {
     return (
       <p className="text-center text-gray-500 py-6">
         You have no active holdings.
@@ -94,33 +125,36 @@ export default function UserBets({
 
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 p-4 border-gray-200 bg-gray-50 rounded-lg text-xs font-medium text-gray-600">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_200px] gap-4 p-4 border-gray-200 bg-gray-50 rounded-lg text-xs font-medium text-gray-600">
         <div>Market</div>
         <div className="text-center">Prediction</div>
         <div className="text-right">Units</div>
         <div className="text-right">Avg. Price</div>
         <div className="text-right">Current Value</div>
         <div className="text-right">Unrealized Gains</div>
-        <div className="text-center">Action</div>
+        <div className="text-center">Actions</div>
       </div>
 
       {holdings
-        .filter((holding) => holding.current_value > 0.1)
+        .filter((holding) => holding.current_value > 0.01)
         .map((holding) => {
           const key = `${holding.mId}-${holding.yes}`;
           const sellAmount = sellAmounts[key] || "";
           const isSelling = sellingHolding === holding;
           const sellAmountNum = parseFloat(sellAmount);
+          
+          // Use epsilon tolerance for better precision handling
+          const EPSILON = 0.01;
           const canSell =
             !isSelling &&
             !isNaN(sellAmountNum) &&
             sellAmountNum > 0 &&
-            sellAmountNum <= holding.current_value;
+            sellAmountNum <= holding.current_value + EPSILON;
 
           return (
             <div
               key={key}
-              className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors items-center"
+              className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_200px] gap-4 p-4 rounded-md hover:bg-gray-50 transition-colors items-center"
             >
               <Link
                 href={`/markets/${holding.mId}`}
@@ -162,11 +196,11 @@ export default function UserBets({
                 )}
                 ${Math.abs(holding.unrealized_gains).toFixed(2)}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Input
                   type="number"
                   placeholder="Amount ($)"
-                  className="h-9"
+                  className="h-8 text-xs"
                   value={sellAmount}
                   onChange={(e) =>
                     handleAmountChange(
@@ -182,11 +216,25 @@ export default function UserBets({
                   size="sm"
                   onClick={() => handleSell(holding)}
                   disabled={!canSell}
+                  className="h-8 px-2 text-xs"
                 >
                   {isSelling ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     "Sell"
+                  )}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleSellAll(holding)}
+                  disabled={isSelling}
+                  className="h-8 px-2 text-xs bg-red-600 hover:bg-red-700"
+                >
+                  {isSelling ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    "Sell All"
                   )}
                 </Button>
               </div>

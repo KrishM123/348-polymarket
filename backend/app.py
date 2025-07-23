@@ -574,12 +574,20 @@ def create_bet(market_id):
             # For NO, units are based on amt/(1-podd), so selling should check units * unit_price
             current_market_value = net_units * unit_price
             
-            # Check if the sell amount exceeds the current market value
-            if abs(amount) > current_market_value:
+            # Define epsilon for floating-point comparison (1 cent tolerance)
+            EPSILON = 0.01
+            sell_amount = abs(amount)
+            
+            # Special handling for "sell all" - if trying to sell within epsilon of total value, allow it
+            if abs(sell_amount - current_market_value) <= EPSILON:
+                # This is effectively a "sell all" operation - allow it to proceed
+                pass
+            elif sell_amount > current_market_value + EPSILON:
+                # Only reject if sell amount significantly exceeds holdings
                 connection.rollback()
                 cursor.close()
                 connection.close()
-                return jsonify({'error': f'Insufficient holdings. Your current market value is ${current_market_value:.2f}, trying to sell ${abs(amount):.2f}'}), 400
+                return jsonify({'error': f'Insufficient holdings. Your current market value is ${current_market_value:.2f}, trying to sell ${sell_amount:.2f}'}), 400
         
         try:
             # Insert the bet using current market odds (trigger will handle balance and volume updates)
