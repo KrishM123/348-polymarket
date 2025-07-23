@@ -7,29 +7,38 @@ import {
   BarChart,
   TrendingUp,
   AlertCircle,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import UserBets from "@/app/components/UserBets";
-import { usersAPI, UserHolding, UserProfit } from "@/lib/users";
+import { usersAPI, UserHolding, UserProfit, UserBet } from "@/lib/users";
 import { useEffect, useState } from "react";
+import AllUserBets from "../components/AllUserBets";
+import { Button } from "@/components/ui/button";
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
   const [holdings, setHoldings] = useState<UserHolding[]>([]);
+  const [bets, setBets] = useState<UserBet[]>([]);
   const [profileData, setProfileData] = useState<UserProfit | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [holdingsExpanded, setHoldingsExpanded] = useState(true);
+  const [betsExpanded, setBetsExpanded] = useState(true);
 
   const fetchProfileData = async () => {
     if (!user) return;
     try {
       setDataLoading(true);
-      const [holdingsRes, profitsRes] = await Promise.all([
+      const [holdingsRes, profitsRes, betsRes] = await Promise.all([
         usersAPI.getUserHoldings(),
         usersAPI.getUserProfits(),
+        usersAPI.getUserBets(),
       ]);
       setHoldings(holdingsRes.holdings);
+      setBets(betsRes.bets);
       const userProfit = profitsRes.users.find((p) => p.uid === user.id);
       setProfileData(userProfit || null);
     } catch (err) {
@@ -121,7 +130,11 @@ export default function ProfilePage() {
                   {dataLoading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : profileData ? (
-                    `$${profileData.total_profits.toFixed(2)}`
+                    `$${
+                      profileData.total_profits.toFixed(2) === "-0.00"
+                        ? "0.00"
+                        : profileData.total_profits.toFixed(2)
+                    }`
                   ) : (
                     "$0.00"
                   )}
@@ -129,11 +142,57 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </div>
-          <UserBets
-            holdings={holdings}
-            loading={dataLoading}
-            onBetSold={fetchProfileData}
-          />
+
+          <div className="mt-8">
+            <div className="flex items-end justify-between mb-4">
+              <div className="text-lg font-semibold text-gray-900">
+                Active Bets
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => setHoldingsExpanded(!holdingsExpanded)}
+              >
+                {holdingsExpanded ? (
+                  <>
+                    Hide <ChevronUp className="ml-1 h-4 w-4 inline" />
+                  </>
+                ) : (
+                  <>
+                    Show <ChevronDown className="ml-1 h-4 w-4 inline" />
+                  </>
+                )}
+              </Button>
+            </div>
+            {holdingsExpanded && (
+              <UserBets
+                holdings={holdings}
+                loading={dataLoading}
+                onBetSold={fetchProfileData}
+              />
+            )}
+          </div>
+          <div className="mt-8">
+            <div className="flex items-end justify-between mb-4">
+              <div className="text-lg font-semibold text-gray-900">
+                Transactions
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => setBetsExpanded(!betsExpanded)}
+              >
+                {betsExpanded ? (
+                  <>
+                    Hide <ChevronUp className="ml-1 h-4 w-4 inline" />
+                  </>
+                ) : (
+                  <>
+                    Show <ChevronDown className="ml-1 h-4 w-4 inline" />
+                  </>
+                )}
+              </Button>
+            </div>
+            {betsExpanded && <AllUserBets bets={bets} loading={dataLoading} />}
+          </div>
         </>
       )}
     </div>

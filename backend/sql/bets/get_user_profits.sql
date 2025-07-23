@@ -44,16 +44,24 @@ market_realized_gains AS (
         END as market_realized_gains
         
     FROM user_market_stats
+),
+user_realized_gains AS (
+    SELECT 
+        uid,
+        uname,
+        current_balance,
+        SUM(market_realized_gains) as realized_gains
+    FROM market_realized_gains
+    GROUP BY uid, uname, current_balance
 )
-
 SELECT 
     uid,
     uname,
     current_balance,
-    SUM(market_realized_gains) as realized_gains
-    
-FROM market_realized_gains
-
-GROUP BY uid, uname, current_balance
-
+    realized_gains,
+    -- Window functions for leaderboard
+    ROW_NUMBER() OVER (ORDER BY realized_gains DESC) as row_number,
+    RANK() OVER (ORDER BY realized_gains DESC) as rank,
+    SUM(realized_gains) OVER (ORDER BY realized_gains DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as running_total
+FROM user_realized_gains
 ORDER BY realized_gains DESC; 

@@ -946,6 +946,41 @@ def get_user_holdings():
         print(f"Database error: {e}")
         return jsonify({'error': 'Failed to get user holdings'}), 500
 
+@app.route('/api/user-bets', methods=['GET'])
+@token_required
+def get_user_bets():
+    """Get all bets for the authenticated user"""
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        user_id = request.current_user['user_id']
+        
+        # Get user bets with market information
+        execute_timed_query(cursor, 'bets.get_user_bets', (user_id,))
+        bets = cursor.fetchall()
+        
+        # Convert data types for JSON serialization
+        for bet in bets:
+            bet['podd'] = float(bet['podd'])
+            bet['amt'] = float(bet['amt'])
+            bet['createdAt'] = bet['createdAt'].isoformat()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'bets': bets,
+            'count': len(bets)
+        })
+        
+    except Error as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Failed to fetch user bets'}), 500
+
 @app.route('/api/user-balance', methods=['GET'])
 @token_required
 def get_user_balance():

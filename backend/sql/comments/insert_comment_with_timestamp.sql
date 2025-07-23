@@ -1,0 +1,1 @@
+INSERT INTO comments (uId, mId, content, created_at) VALUES (%s, %s, %s, %s); 
