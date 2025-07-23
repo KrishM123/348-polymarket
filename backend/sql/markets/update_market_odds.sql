@@ -1,1 +1,0 @@
-UPDATE markets SET podd = %s WHERE mid = %s 

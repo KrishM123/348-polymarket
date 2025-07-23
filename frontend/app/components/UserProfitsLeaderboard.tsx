@@ -19,7 +19,8 @@ export default function UserProfitsLeaderboard() {
 
       try {
         const response = await marketsAPI.getUserProfits();
-        setUsers(response.users);
+        const sortedUsers = response.users.sort((a, b) => b.percent_change - a.percent_change);
+        setUsers(sortedUsers);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to fetch user profits"
@@ -108,9 +109,6 @@ export default function UserProfitsLeaderboard() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Rank</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Username</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Current Balance</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Realized Gains</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Unrealized Gains</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Total Profits</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">% Change</th>
                 </tr>
@@ -123,22 +121,6 @@ export default function UserProfitsLeaderboard() {
                     </td>
                     <td className="py-3 px-4 font-medium text-gray-900">
                       {user.uname}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className="flex items-center justify-end gap-1">
-                        <DollarSign className="h-4 w-4 text-gray-500" />
-                        {formatCurrency(user.current_balance)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className={getProfitColor(user.realized_gains)}>
-                        {formatCurrency(user.realized_gains)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className={getProfitColor(user.unrealized_gains)}>
-                        {formatCurrency(user.unrealized_gains)}
-                      </span>
                     </td>
                     <td className="py-3 px-4 text-right font-semibold">
                       <span className={getProfitColor(user.total_profits)}>

@@ -1,5 +1,4 @@
 WITH RECURSIVE threaded_comments AS (
-    -- Base case: top-level comments
     SELECT
         c.cId,
         c.content,
@@ -10,12 +9,11 @@ WITH RECURSIVE threaded_comments AS (
         0     AS level
     FROM comments c
     JOIN users u ON c.uId = u.uid
-    WHERE c.mId = %s
+    WHERE c.mId = %s    
       AND c.cId NOT IN (SELECT cCId FROM isParentOf)
 
     UNION ALL
 
-    -- Recursive case: fetch replies to the previous level
     SELECT
         child.cId,
         child.content,

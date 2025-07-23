@@ -1,11 +1,7 @@
-DELIMITER $$
-
 CREATE EVENT IF NOT EXISTS `daily_market_resolution_event`
 ON SCHEDULE EVERY 1 DAY
 STARTS CURRENT_TIMESTAMP
 DO
 BEGIN
     CALL `resolve_markets`();
-END$$
-
-DELIMITER ; 
+END 

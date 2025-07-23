@@ -1,1 +1,0 @@
-SELECT * FROM bets WHERE bId = %s; 

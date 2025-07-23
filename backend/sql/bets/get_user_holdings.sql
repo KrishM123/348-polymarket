@@ -7,17 +7,17 @@ WITH user_market_holdings AS (
         m.description as market_description,
         m.end_date,
         
-        -- Calculate total bet units for buying (positive amounts)
+        -- Calculate total bet units for buying
         SUM(CASE WHEN b.amt > 0 AND b.yes = 1 THEN b.amt / b.podd
                  WHEN b.amt > 0 AND b.yes = 0 THEN b.amt / (1 - b.podd)
                  ELSE 0 END) as bought_units,
         
-        -- Calculate total bet units for selling (negative amounts)
+        -- Calculate total bet units for selling
         SUM(CASE WHEN b.amt < 0 AND b.yes = 1 THEN ABS(b.amt) / b.podd
                  WHEN b.amt < 0 AND b.yes = 0 THEN ABS(b.amt) / (1 - b.podd)
                  ELSE 0 END) as sold_units,
         
-        -- Calculate net bet units (bought - sold)
+        -- Calculate net bet units
         SUM(CASE WHEN b.amt > 0 AND b.yes = 1 THEN b.amt / b.podd
                  WHEN b.amt > 0 AND b.yes = 0 THEN b.amt / (1 - b.podd)
                  ELSE 0 END)
@@ -77,7 +77,7 @@ SELECT
     
 FROM user_market_holdings
 
--- Only return markets with remaining bet units (net_units > 0)
+-- Only return markets with remaining bet units
 WHERE net_units > 0
 
 ORDER BY net_units DESC 
